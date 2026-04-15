@@ -88,6 +88,12 @@ Implemented in this scaffold:
   - PPTX via `python-pptx`
   - XLSX via `openpyxl`
 
+Architecture recommendation:
+- keep the default stack lightweight
+- treat `Docling` as a heavy parser profile for difficult PDFs, not as a mandatory base dependency
+- use external OpenAI-compatible providers such as `Polza AI` primarily for answer generation, not for extraction
+- only switch embeddings to an external provider after retrieval eval proves a quality benefit
+
 Not implemented yet:
 - multilingual query routing
 - OCR-only path for scanned PDFs
@@ -103,10 +109,23 @@ docker compose up -d
 Enable Docling support and rebuild the Python image:
 
 ```bash
-INSTALL_DOCLING=true docker compose build ingestion hayhooks hayhooks-mcp
+make build-docling
 ```
 
 Then keep `PDF_EXTRACTOR=hybrid` or set `PDF_EXTRACTOR=docling` for forced use.
+
+Extractor-specific reindex commands:
+
+```bash
+make reindex-pypdf
+make reindex-hybrid
+make reindex-docling
+```
+
+Practical rule:
+- `make reindex-hybrid` is the safest default
+- `make reindex-docling` is for targeted experiments after `make build-docling`
+- `make reindex-pypdf` is the cheap baseline for comparison
 
 The compose stack exposes:
 - `Open WebUI`: `http://localhost:3000`

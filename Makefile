@@ -1,6 +1,6 @@
 COMPOSE = docker compose
 
-.PHONY: up down restart logs reindex eval eval-compare eval-report smoke test
+.PHONY: up down restart logs reindex reindex-pypdf reindex-hybrid reindex-docling build-docling eval eval-compare eval-report smoke test
 
 up:
 	$(COMPOSE) up -d
@@ -16,6 +16,18 @@ logs:
 
 reindex:
 	$(COMPOSE) run --rm ingestion python -m haystack_rag.ingestion.index_documents --input-dir /documents/rag_docs --recreate-index
+
+reindex-pypdf:
+	PDF_EXTRACTOR=pypdf $(COMPOSE) run --rm ingestion python -m haystack_rag.ingestion.index_documents --input-dir /documents/rag_docs --recreate-index
+
+reindex-hybrid:
+	PDF_EXTRACTOR=hybrid $(COMPOSE) run --rm ingestion python -m haystack_rag.ingestion.index_documents --input-dir /documents/rag_docs --recreate-index
+
+reindex-docling:
+	PDF_EXTRACTOR=docling $(COMPOSE) run --rm ingestion python -m haystack_rag.ingestion.index_documents --input-dir /documents/rag_docs --recreate-index
+
+build-docling:
+	INSTALL_DOCLING=true $(COMPOSE) build ingestion hayhooks hayhooks-mcp
 
 eval:
 	python3 scripts/evaluate_retrieval.py --cases eval/retrieval_cases.json --fail-on-miss
