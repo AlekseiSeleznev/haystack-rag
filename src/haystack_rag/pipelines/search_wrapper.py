@@ -40,6 +40,9 @@ class PipelineWrapper(BasePipelineWrapper):
         question: str,
         mode: str = "search",
         top_k: int | None = None,
+        collapse_sources: bool = False,
+        group_by: str | None = None,
+        group_size: int | None = None,
         domain: str | list[str] | None = None,
         category: str | list[str] | None = None,
         subcategory: str | list[str] | None = None,
@@ -66,12 +69,24 @@ class PipelineWrapper(BasePipelineWrapper):
             top_k=top_k,
             filters=applied_filters,
             score_threshold=score_threshold,
+            group_by=self._resolve_group_by(group_by=group_by, collapse_sources=collapse_sources),
+            group_size=self._resolve_group_size(
+                group_by=group_by,
+                group_size=group_size,
+                collapse_sources=collapse_sources,
+            ),
         )
 
         result: dict[str, Any] = {
             "question": question,
             "mode": mode,
             "applied_filters": applied_filters,
+            "group_by": self._resolve_group_by(group_by=group_by, collapse_sources=collapse_sources),
+            "group_size": self._resolve_group_size(
+                group_by=group_by,
+                group_size=group_size,
+                collapse_sources=collapse_sources,
+            ),
             "documents": [self._serialize_document(document) for document in documents],
         }
 
@@ -99,6 +114,15 @@ class PipelineWrapper(BasePipelineWrapper):
                 filters=body.get("filters"),
             ),
             score_threshold=body.get("score_threshold"),
+            group_by=self._resolve_group_by(
+                group_by=body.get("group_by"),
+                collapse_sources=body.get("collapse_sources", False),
+            ),
+            group_size=self._resolve_group_size(
+                group_by=body.get("group_by"),
+                group_size=body.get("group_size"),
+                collapse_sources=body.get("collapse_sources", False),
+            ),
         )
         return self._answer(question=question, documents=documents)
 
@@ -108,6 +132,8 @@ class PipelineWrapper(BasePipelineWrapper):
         top_k: int | None = None,
         filters: dict[str, Any] | list[dict[str, Any]] | None = None,
         score_threshold: float | None = None,
+        group_by: str | None = None,
+        group_size: int | None = None,
     ) -> list[Document]:
         result = self.pipeline.run(
             data={
@@ -116,6 +142,8 @@ class PipelineWrapper(BasePipelineWrapper):
                     "filters": filters,
                     "top_k": top_k or self.config.top_k,
                     "score_threshold": score_threshold,
+                    "group_by": group_by,
+                    "group_size": group_size,
                 },
             }
         )
@@ -292,3 +320,22 @@ class PipelineWrapper(BasePipelineWrapper):
 
     def _normalize_text_filter(self, value: Any) -> str:
         return str(value).strip().casefold()
+
+    def _resolve_group_by(self, group_by: str | None, collapse_sources: bool) -> str | None:
+        if group_by:
+            return group_by
+        if collapse_sources:
+            return "meta.source_path"
+        return None
+
+    def _resolve_group_size(
+        self,
+        group_by: str | None,
+        group_size: int | None,
+        collapse_sources: bool,
+    ) -> int | None:
+        if group_size is not None:
+            return group_size
+        if group_by or collapse_sources:
+            return 1
+        return None

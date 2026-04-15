@@ -12,8 +12,10 @@
    - `domain`, `category`, `subcategory`
    - `source_dir`, `source_name`, `extension`
    - `language_hint`
-6. Hayhooks exposes retrieval and answer generation.
-7. Open WebUI connects to Hayhooks through the OpenAI-compatible API by default in `docker-compose`.
+6. PDF extraction applies newline cleanup heuristics to reduce broken word-by-word chunks.
+7. Hayhooks exposes retrieval and answer generation.
+8. Retrieval can optionally collapse repeated chunks by source using `collapse_sources`.
+9. Open WebUI connects to Hayhooks through the OpenAI-compatible API by default in `docker-compose`.
 
 ## Design Rules
 

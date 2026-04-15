@@ -68,13 +68,14 @@ Implemented in this scaffold:
 - Qdrant-backed retrieval wrapper for Hayhooks
 - simple `search` API mode
 - structured retrieval filters for `domain`, `category`, `subcategory`, `source_dir`, `source_name`, `extension`, `language_hint`
+- optional source collapsing via `collapse_sources=true`
 - chat completion mode for Open WebUI
 - full reindex flow from raw source files
 - local embedding fallback via `fastembed`
 - retrieval evaluation script and sample case set
 - lightweight parser path:
   - text-like files are read directly
-  - PDF via `pypdf`
+  - PDF via `pypdf` with newline cleanup heuristics for less fragmented chunks
   - DOCX via `python-docx`
   - PPTX via `python-pptx`
   - XLSX via `openpyxl`
@@ -128,6 +129,19 @@ curl -X POST http://localhost:1416/doc_search/run \
     "domain": "1c",
     "category": "books",
     "language_hint": "ru"
+  }'
+```
+
+Example source-collapsed retrieval request:
+
+```bash
+curl -X POST http://localhost:1416/doc_search/run \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "question": "1С payroll SAP assignmentIdExternal wage type",
+    "mode": "search",
+    "top_k": 8,
+    "collapse_sources": true
   }'
 ```
 

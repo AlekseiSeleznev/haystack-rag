@@ -135,7 +135,7 @@ def extract_text(path: Path) -> str | None:
 
 def extract_pdf_text(path: Path) -> str:
     reader = PdfReader(str(path))
-    pages = [page.extract_text() or "" for page in reader.pages]
+    pages = [clean_pdf_text(page.extract_text() or "") for page in reader.pages]
     return "\n\n".join(page.strip() for page in pages if page.strip())
 
 
@@ -210,6 +210,16 @@ def infer_language_hint(relative_path: Path, text: str) -> str:
 
     sample = text[:4000]
     return "ru" if CYRILLIC_RE.search(sample) else "en"
+
+
+def clean_pdf_text(text: str) -> str:
+    cleaned = text.replace("\u00ad", "")
+    cleaned = re.sub(r"(?<=\w)-\s*\n\s*(?=\w)", "", cleaned)
+    cleaned = re.sub(r"(?<!\n)\s*\n\s*(?!\n)", " ", cleaned)
+    cleaned = re.sub(r"[ \t]+", " ", cleaned)
+    cleaned = re.sub(r" *\n{2,} *", "\n\n", cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip()
 
 
 def chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
