@@ -9,6 +9,8 @@ __pycache__/
 .ruff_cache/
 
 data/qdrant/
-data/input/
+data/cache/
+data/input/*
+!data/input/
 !data/input/.gitkeep
-
+!data/input/smoke-test-tech-docs.md

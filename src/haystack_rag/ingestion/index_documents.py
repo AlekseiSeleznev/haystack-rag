@@ -7,14 +7,13 @@ from typing import Iterable
 from haystack import Document
 from haystack.components.embedders import OpenAIDocumentEmbedder
 from haystack.document_stores.types import DuplicatePolicy
+from haystack_integrations.components.embedders.fastembed import FastembedDocumentEmbedder
+from openpyxl import load_workbook
+from pypdf import PdfReader
+from docx import Document as DocxDocument
+from pptx import Presentation
 
 from haystack_rag.config import AppConfig, create_document_store, require_secret
-
-try:
-    from docling.document_converter import DocumentConverter
-except Exception:
-    DocumentConverter = None
-
 
 TEXT_EXTENSIONS = {
     ".csv",
@@ -29,9 +28,6 @@ TEXT_EXTENSIONS = {
     ".yaml",
     ".yml",
 }
-DOCLING_EXTENSIONS = {".docx", ".pdf", ".pptx", ".xlsx"}
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Index source documents into Qdrant.")
     parser.add_argument("--input-dir", default="data/input", help="Directory with source documents.")
@@ -50,18 +46,11 @@ def main() -> None:
     if not input_dir.exists():
         raise SystemExit(f"Input directory does not exist: {input_dir}")
 
-    converter = DocumentConverter() if DocumentConverter is not None else None
-    documents = list(build_documents(input_dir=input_dir, config=config, converter=converter))
+    documents = list(build_documents(input_dir=input_dir, config=config))
     if not documents:
         raise SystemExit("No indexable documents were found.")
 
-    embedder = OpenAIDocumentEmbedder(
-        api_key=require_secret(config.embedding_api_key, "EMBEDDING_API_KEY or OPENAI_API_KEY"),
-        api_base_url=config.embedding_api_base_url,
-        dimensions=config.embedding_dimensions,
-        model=config.embedding_model,
-        progress_bar=True,
-    )
+    embedder = create_document_embedder(config)
     embedded_documents = embedder.run(documents=documents)["documents"]
 
     document_store = create_document_store(config=config, recreate_index=args.recreate_index)
@@ -72,13 +61,14 @@ def main() -> None:
 def build_documents(
     input_dir: Path,
     config: AppConfig,
-    converter: DocumentConverter | None,
 ) -> Iterable[Document]:
     for path in sorted(input_dir.rglob("*")):
         if not path.is_file():
             continue
+        if path.name.startswith("."):
+            continue
 
-        text = extract_text(path=path, converter=converter)
+        text = extract_text(path=path)
         if not text:
             continue
 
@@ -95,25 +85,79 @@ def build_documents(
             )
 
 
-def extract_text(path: Path, converter: DocumentConverter | None) -> str | None:
+def create_document_embedder(config: AppConfig) -> OpenAIDocumentEmbedder | FastembedDocumentEmbedder:
+    if config.embedding_provider == "openai":
+        return OpenAIDocumentEmbedder(
+            api_key=require_secret(config.embedding_api_key, "EMBEDDING_API_KEY or OPENAI_API_KEY"),
+            api_base_url=config.embedding_api_base_url,
+            dimensions=config.embedding_dimensions,
+            model=config.embedding_model,
+            progress_bar=True,
+        )
+
+    return FastembedDocumentEmbedder(
+        model=config.embedding_model,
+        cache_dir=config.fastembed_cache_path,
+        prefix="passage: " if "e5" in config.embedding_model.lower() else "",
+        progress_bar=True,
+    )
+
+
+def extract_text(path: Path) -> str | None:
     suffix = path.suffix.lower()
     if suffix in TEXT_EXTENSIONS:
         return path.read_text(encoding="utf-8", errors="ignore").strip()
 
-    if suffix in DOCLING_EXTENSIONS and converter is not None:
-        try:
-            result = converter.convert(str(path))
-            document = result.document
-            if hasattr(document, "export_to_markdown"):
-                return document.export_to_markdown().strip()
-            if hasattr(document, "export_to_text"):
-                return document.export_to_text().strip()
-        except Exception as exc:
-            print(f"Skipping {path}: Docling conversion failed ({exc})")
-            return None
+    try:
+        if suffix == ".pdf":
+            return extract_pdf_text(path)
+        if suffix == ".docx":
+            return extract_docx_text(path)
+        if suffix == ".pptx":
+            return extract_pptx_text(path)
+        if suffix == ".xlsx":
+            return extract_xlsx_text(path)
+    except Exception as exc:
+        print(f"Skipping {path}: parser failed ({exc})")
+        return None
 
     print(f"Skipping {path}: unsupported file type")
     return None
+
+
+def extract_pdf_text(path: Path) -> str:
+    reader = PdfReader(str(path))
+    pages = [page.extract_text() or "" for page in reader.pages]
+    return "\n\n".join(page.strip() for page in pages if page.strip())
+
+
+def extract_docx_text(path: Path) -> str:
+    document = DocxDocument(str(path))
+    parts = [paragraph.text.strip() for paragraph in document.paragraphs if paragraph.text.strip()]
+    return "\n".join(parts)
+
+
+def extract_pptx_text(path: Path) -> str:
+    presentation = Presentation(str(path))
+    parts: list[str] = []
+    for slide in presentation.slides:
+        for shape in slide.shapes:
+            text = getattr(shape, "text", "")
+            if text and text.strip():
+                parts.append(text.strip())
+    return "\n".join(parts)
+
+
+def extract_xlsx_text(path: Path) -> str:
+    workbook = load_workbook(filename=str(path), read_only=True, data_only=True)
+    parts: list[str] = []
+    for sheet in workbook.worksheets:
+        parts.append(f"# Sheet: {sheet.title}")
+        for row in sheet.iter_rows(values_only=True):
+            cells = [str(cell).strip() for cell in row if cell is not None and str(cell).strip()]
+            if cells:
+                parts.append(" | ".join(cells))
+    return "\n".join(parts)
 
 
 def chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:

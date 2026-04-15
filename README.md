@@ -7,7 +7,8 @@ Current target architecture:
 - `Haystack` for retrieval and orchestration
 - `Hayhooks` for HTTP and OpenAI-compatible endpoints
 - `Open WebUI` for operator and test UI
-- external API models for embeddings and answer synthesis
+- local multilingual embeddings by default
+- optional external API models for embeddings and answer synthesis
 
 Current non-goal:
 - do not migrate the old `qdrant-loader` index
@@ -30,9 +31,10 @@ cp .env.example .env
 ```
 
 2. Fill at least:
-- `OPENAI_API_KEY`
-- `EMBEDDING_MODEL`
-- `CHAT_MODEL`
+- nothing, if you want local retrieval-only mode
+- `OPENAI_API_KEY`, if you want OpenAI-compatible providers
+- `EMBEDDING_PROVIDER=openai`, if you want external embeddings
+- `CHAT_PROVIDER=openai`, if you want LLM answers instead of retrieval-only fallback
 
 3. Put source files into `data/input/`.
 
@@ -45,16 +47,13 @@ docker compose up -d qdrant hayhooks open-webui
 5. Run a full reindex:
 
 ```bash
-docker compose run --rm ingestion --recreate-index
+docker compose run --rm ingestion python -m haystack_rag.ingestion.index_documents --input-dir /app/data/input --recreate-index
 ```
 
 6. Open `http://localhost:3000`.
 
-7. In Open WebUI add Hayhooks as an OpenAI-compatible connection:
-- API Base URL: `http://hayhooks:1416/v1`
-- API Key: any value
-
-If you connect from outside Docker, use `http://localhost:1416/v1`.
+7. `Open WebUI` is preconfigured to use `Hayhooks` as an OpenAI-compatible backend.
+If you connect to `Hayhooks` directly from outside Docker, use `http://localhost:1416/v1`.
 
 ## Current Scope
 
@@ -64,9 +63,13 @@ Implemented in this scaffold:
 - simple `search` API mode
 - chat completion mode for Open WebUI
 - full reindex flow from raw source files
-- parser fallback path:
+- local embedding fallback via `fastembed`
+- lightweight parser path:
   - text-like files are read directly
-  - PDF/DOCX/PPTX/XLSX attempt Docling conversion
+  - PDF via `pypdf`
+  - DOCX via `python-docx`
+  - PPTX via `python-pptx`
+  - XLSX via `openpyxl`
 
 Not implemented yet:
 - reranking
@@ -86,13 +89,13 @@ docker compose up -d
 Rebuild the index from scratch:
 
 ```bash
-docker compose run --rm ingestion --recreate-index
+docker compose run --rm ingestion python -m haystack_rag.ingestion.index_documents --input-dir /app/data/input --recreate-index
 ```
 
 Incremental indexing:
 
 ```bash
-docker compose run --rm ingestion
+docker compose run --rm ingestion python -m haystack_rag.ingestion.index_documents --input-dir /app/data/input
 ```
 
 Follow logs:
@@ -109,4 +112,3 @@ docker compose logs -f open-webui
 3. Add structured source filters.
 4. Add evaluation queries for SAP / 1C docs.
 5. Revisit answer mode only after `search_only` is stable.
-

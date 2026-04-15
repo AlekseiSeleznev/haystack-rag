@@ -9,11 +9,15 @@ description = "Local technical documentation RAG stack based on Haystack, Hayhoo
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-  "docling>=2.0.0",
+  "fastembed-haystack>=2.1.0",
   "hayhooks>=0.5.0",
   "haystack-ai>=2.0.0",
   "openai>=1.0.0",
+  "openpyxl>=3.1.5",
+  "pypdf>=5.0.0",
+  "python-docx>=1.1.2",
   "python-dotenv>=1.0.0",
+  "python-pptx>=1.0.2",
   "qdrant-haystack>=5.0.0",
 ]
 
@@ -22,4 +26,3 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
-

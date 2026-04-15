@@ -7,6 +7,7 @@ from haystack import Pipeline
 from haystack.components.embedders import OpenAITextEmbedder
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage, Document
+from haystack_integrations.components.embedders.fastembed import FastembedTextEmbedder
 from haystack_integrations.components.retrievers.qdrant import QdrantEmbeddingRetriever
 
 from haystack_rag.config import AppConfig, create_document_store, require_secret
@@ -22,21 +23,12 @@ class PipelineWrapper(BasePipelineWrapper):
     def setup(self) -> None:
         self.config = AppConfig.from_env()
         self.document_store = create_document_store(self.config)
-        self.query_embedder = OpenAITextEmbedder(
-            api_key=require_secret(self.config.embedding_api_key, "EMBEDDING_API_KEY or OPENAI_API_KEY"),
-            api_base_url=self.config.embedding_api_base_url,
-            dimensions=self.config.embedding_dimensions,
-            model=self.config.embedding_model,
-        )
+        self.query_embedder = self._create_query_embedder()
         self.retriever = QdrantEmbeddingRetriever(
             document_store=self.document_store,
             top_k=self.config.top_k,
         )
-        self.answer_llm = OpenAIChatGenerator(
-            api_key=require_secret(self.config.chat_api_key, "CHAT_API_KEY or OPENAI_API_KEY"),
-            api_base_url=self.config.chat_api_base_url,
-            model=self.config.chat_model,
-        )
+        self.answer_llm = self._create_answer_llm()
 
         self.pipeline = Pipeline()
         self.pipeline.add_component("query_embedder", self.query_embedder)
@@ -79,6 +71,9 @@ class PipelineWrapper(BasePipelineWrapper):
         if not documents:
             return "No indexed context was found for this question. Rephrase the query or reindex the source documents."
 
+        if self.answer_llm is None:
+            return self._fallback_answer(question=question, documents=documents)
+
         context = self._format_context(documents)
         sources = self._format_sources(documents)
         response = self.answer_llm.run(
@@ -94,6 +89,20 @@ class PipelineWrapper(BasePipelineWrapper):
         )
         answer = response["replies"][0].text.strip()
         return f"{answer}\n\nSources:\n{sources}"
+
+    def _fallback_answer(self, question: str, documents: list[Document]) -> str:
+        snippets: list[str] = []
+        for index, document in enumerate(documents[:3], start=1):
+            source_path = str(document.meta.get("source_path", "unknown"))
+            content = (document.content or "").strip()
+            snippets.append(f"[{index}] {source_path}\n{content[:700]}")
+
+        return (
+            "LLM answer mode is disabled because no chat provider is configured.\n\n"
+            f"Question:\n{question}\n\n"
+            "Top retrieved context:\n"
+            + "\n\n".join(snippets)
+        )
 
     def _format_context(self, documents: list[Document]) -> str:
         blocks: list[str] = []
@@ -122,3 +131,31 @@ class PipelineWrapper(BasePipelineWrapper):
             "score": getattr(document, "score", None),
         }
 
+    def _create_query_embedder(self) -> OpenAITextEmbedder | FastembedTextEmbedder:
+        if self.config.embedding_provider == "openai":
+            return OpenAITextEmbedder(
+                api_key=require_secret(self.config.embedding_api_key, "EMBEDDING_API_KEY or OPENAI_API_KEY"),
+                api_base_url=self.config.embedding_api_base_url,
+                dimensions=self.config.embedding_dimensions,
+                model=self.config.embedding_model,
+            )
+
+        return FastembedTextEmbedder(
+            model=self.config.embedding_model,
+            cache_dir=self.config.fastembed_cache_path,
+            prefix=self._query_prefix(),
+            progress_bar=False,
+        )
+
+    def _create_answer_llm(self) -> OpenAIChatGenerator | None:
+        if self.config.chat_provider != "openai":
+            return None
+
+        return OpenAIChatGenerator(
+            api_key=require_secret(self.config.chat_api_key, "CHAT_API_KEY or OPENAI_API_KEY"),
+            api_base_url=self.config.chat_api_base_url,
+            model=self.config.chat_model,
+        )
+
+    def _query_prefix(self) -> str:
+        return "query: " if "e5" in self.config.embedding_model.lower() else ""

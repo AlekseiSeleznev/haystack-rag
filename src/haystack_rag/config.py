@@ -19,10 +19,13 @@ class AppConfig:
     top_k: int
     chunk_size: int
     chunk_overlap: int
+    embedding_provider: str
     embedding_model: str
     embedding_dimensions: int
     embedding_api_key: str
     embedding_api_base_url: str | None
+    fastembed_cache_path: str | None
+    chat_provider: str
     chat_model: str
     chat_api_key: str
     chat_api_base_url: str | None
@@ -41,10 +44,16 @@ class AppConfig:
             top_k=int(os.getenv("TOP_K", "8")),
             chunk_size=int(os.getenv("CHUNK_SIZE", "1400")),
             chunk_overlap=int(os.getenv("CHUNK_OVERLAP", "200")),
-            embedding_model=os.getenv("EMBEDDING_MODEL", "text-embedding-3-small").strip(),
-            embedding_dimensions=int(os.getenv("EMBEDDING_DIMENSIONS", "1536")),
+            embedding_provider=os.getenv("EMBEDDING_PROVIDER", "fastembed").strip().lower(),
+            embedding_model=os.getenv(
+                "EMBEDDING_MODEL",
+                "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+            ).strip(),
+            embedding_dimensions=int(os.getenv("EMBEDDING_DIMENSIONS", "384")),
             embedding_api_key=embedding_api_key,
             embedding_api_base_url=_optional_env("EMBEDDING_API_BASE_URL") or shared_api_base_url,
+            fastembed_cache_path=_optional_env("FASTEMBED_CACHE_PATH"),
+            chat_provider=os.getenv("CHAT_PROVIDER", "disabled").strip().lower(),
             chat_model=os.getenv("CHAT_MODEL", "gpt-4o-mini").strip(),
             chat_api_key=chat_api_key,
             chat_api_base_url=_optional_env("CHAT_API_BASE_URL") or shared_api_base_url,
@@ -64,4 +73,3 @@ def create_document_store(config: AppConfig, recreate_index: bool = False) -> Qd
         embedding_dim=config.embedding_dimensions,
         recreate_index=recreate_index,
     )
-
