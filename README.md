@@ -69,6 +69,7 @@ Implemented in this scaffold:
 - simple `search` API mode
 - structured retrieval filters for `domain`, `category`, `subcategory`, `source_dir`, `source_name`, `extension`, `language_hint`
 - optional source collapsing via `collapse_sources=true`
+- late-interaction reranking over the retrieved candidate set
 - chat completion mode for Open WebUI
 - full reindex flow from raw source files
 - local embedding fallback via `fastembed`
@@ -81,7 +82,6 @@ Implemented in this scaffold:
   - XLSX via `openpyxl`
 
 Not implemented yet:
-- reranking
 - multilingual query routing
 - OCR-only path for scanned PDFs
 
@@ -132,6 +132,11 @@ curl -X POST http://localhost:1416/doc_search/run \
   }'
 ```
 
+The response includes:
+- `reranking_enabled`: reranker is configured for the service
+- `reranking_applied`: reranking was actually used for this request
+- `retrieval_score` and `rerank_score` inside each document `meta`
+
 Example source-collapsed retrieval request:
 
 ```bash
@@ -147,7 +152,7 @@ curl -X POST http://localhost:1416/doc_search/run \
 
 ## Next Steps
 
-1. Add reranking after dense retrieval is validated.
-2. Improve parser strategy for difficult PDFs.
-3. Expand the evaluation case set with real user queries.
-4. Revisit answer mode only after `search_only` is stable.
+1. Add a stronger evaluation set with real user queries and expected sources.
+2. Improve parser strategy for difficult or scanned PDFs.
+3. Consider hybrid retrieval if dense retrieval misses exact-reference queries.
+4. Revisit answer mode only after `search_only` remains stable on the real corpus.

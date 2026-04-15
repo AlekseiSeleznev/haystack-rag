@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
+import numpy as np
+from fastembed import LateInteractionTextEmbedding
 from hayhooks import BasePipelineWrapper, get_last_user_message
 from haystack import Pipeline
 from haystack.components.embedders import OpenAITextEmbedder
@@ -28,6 +31,7 @@ class PipelineWrapper(BasePipelineWrapper):
             document_store=self.document_store,
             top_k=self.config.top_k,
         )
+        self.reranker = self._create_reranker()
         self.answer_llm = self._create_answer_llm()
 
         self.pipeline = Pipeline()
@@ -76,11 +80,17 @@ class PipelineWrapper(BasePipelineWrapper):
                 collapse_sources=collapse_sources,
             ),
         )
+        reranking_applied = self.reranker is not None and self._resolve_group_by(
+            group_by=group_by,
+            collapse_sources=collapse_sources,
+        ) is None
 
         result: dict[str, Any] = {
             "question": question,
             "mode": mode,
             "applied_filters": applied_filters,
+            "reranking_enabled": self.reranker is not None,
+            "reranking_applied": reranking_applied,
             "group_by": self._resolve_group_by(group_by=group_by, collapse_sources=collapse_sources),
             "group_size": self._resolve_group_size(
                 group_by=group_by,
@@ -135,19 +145,29 @@ class PipelineWrapper(BasePipelineWrapper):
         group_by: str | None = None,
         group_size: int | None = None,
     ) -> list[Document]:
+        requested_top_k = top_k or self.config.top_k
+        retrieval_top_k = requested_top_k
+        if self.reranker is not None and group_by is None:
+            retrieval_top_k = max(requested_top_k, self.config.reranker_candidates)
+
         result = self.pipeline.run(
             data={
                 "query_embedder": {"text": question},
                 "retriever": {
                     "filters": filters,
-                    "top_k": top_k or self.config.top_k,
+                    "top_k": retrieval_top_k,
                     "score_threshold": score_threshold,
                     "group_by": group_by,
                     "group_size": group_size,
                 },
             }
         )
-        return result["retriever"]["documents"]
+        documents = result["retriever"]["documents"]
+        if self.reranker is not None and documents and group_by is None:
+            documents = self._rerank_documents(question=question, documents=documents, top_k=requested_top_k)
+        else:
+            documents = documents[:requested_top_k]
+        return documents
 
     def _answer(self, question: str, documents: list[Document]) -> str:
         if not documents:
@@ -242,6 +262,21 @@ class PipelineWrapper(BasePipelineWrapper):
     def _query_prefix(self) -> str:
         return "query: " if "e5" in self.config.embedding_model.lower() else ""
 
+    def _create_reranker(self) -> LateInteractionTextEmbedding | None:
+        if not self.config.reranker_enabled:
+            return None
+        if self.config.reranker_provider != "fastembed_late_interaction":
+            return None
+        try:
+            return LateInteractionTextEmbedding(
+                model_name=self.config.reranker_model,
+                cache_dir=self.config.fastembed_cache_path,
+                lazy_load=False,
+            )
+        except Exception as exc:
+            print(f"Reranker disabled: failed to initialize '{self.config.reranker_model}' ({exc})")
+            return None
+
     def _build_filters(
         self,
         domain: str | list[str] | None = None,
@@ -320,6 +355,35 @@ class PipelineWrapper(BasePipelineWrapper):
 
     def _normalize_text_filter(self, value: Any) -> str:
         return str(value).strip().casefold()
+
+    def _rerank_documents(self, question: str, documents: list[Document], top_k: int) -> list[Document]:
+        assert self.reranker is not None
+
+        query_embedding = next(self.reranker.query_embed(question))
+        document_texts = [document.content or "" for document in documents]
+        document_embeddings = list(self.reranker.embed(document_texts, batch_size=16))
+
+        rescored: list[tuple[float, Document]] = []
+        for document, document_embedding in zip(documents, document_embeddings, strict=False):
+            retrieval_score = float(getattr(document, "score", 0.0) or 0.0)
+            rerank_score = self._late_interaction_score(query_embedding, document_embedding)
+            updated_document = replace(
+                document,
+                score=rerank_score,
+                meta={
+                    **(document.meta or {}),
+                    "retrieval_score": retrieval_score,
+                    "rerank_score": rerank_score,
+                },
+            )
+            rescored.append((rerank_score, updated_document))
+
+        rescored.sort(key=lambda item: item[0], reverse=True)
+        return [document for _, document in rescored[:top_k]]
+
+    def _late_interaction_score(self, query_embedding: np.ndarray, document_embedding: np.ndarray) -> float:
+        token_similarities = document_embedding @ query_embedding.T
+        return float(token_similarities.max(axis=0).sum())
 
     def _resolve_group_by(self, group_by: str | None, collapse_sources: bool) -> str | None:
         if group_by:
