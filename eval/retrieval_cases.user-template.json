@@ -1,0 +1,25 @@
+[
+  {
+    "id": "my_real_question_1",
+    "request": {
+      "question": "Впиши сюда свой реальный вопрос",
+      "domain": "1c",
+      "category": "books",
+      "language_hint": "ru"
+    },
+    "expect_any_source_contains": [
+      "1C/BOOKS/Имя_нужного_файла.PDF"
+    ]
+  },
+  {
+    "id": "my_real_question_2",
+    "request": {
+      "question": "Enter your real SAP / API question here",
+      "domain": "work",
+      "category": "puig"
+    },
+    "expect_any_source_contains": [
+      "WORK/PUIG/SAP SuccessFactors API Reference Guide.pdf"
+    ]
+  }
+]

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any
 from urllib import request
@@ -21,6 +22,22 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--top-k", type=int, default=8, help="Top-K documents to request.")
     parser.add_argument("--output", default="", help="Optional path to save the JSON report.")
+    parser.add_argument(
+        "--case",
+        default="",
+        help="Optional substring filter for case id or question.",
+    )
+    parser.add_argument(
+        "--show-top",
+        type=int,
+        default=3,
+        help="How many top returned source paths to print per case.",
+    )
+    parser.add_argument(
+        "--fail-on-miss",
+        action="store_true",
+        help="Exit with code 1 if at least one case fails.",
+    )
     return parser.parse_args()
 
 
@@ -28,6 +45,13 @@ def main() -> None:
     args = parse_args()
     cases_path = Path(args.cases).resolve()
     cases = json.loads(cases_path.read_text(encoding="utf-8"))
+    if args.case:
+        needle = args.case.casefold()
+        cases = [
+            case
+            for case in cases
+            if needle in case["id"].casefold() or needle in case["request"]["question"].casefold()
+        ]
 
     report: list[dict[str, Any]] = []
     passed = 0
@@ -52,9 +76,19 @@ def main() -> None:
             "matched_rank": matched_rank,
             "expected": expected_substrings,
             "returned_source_paths": source_paths,
+            "top_documents": [
+                {
+                    "rank": index,
+                    "source_path": str(document.get("meta", {}).get("source_path", "")),
+                    "score": document.get("score"),
+                    "retrieval_score": document.get("meta", {}).get("retrieval_score"),
+                    "rerank_score": document.get("meta", {}).get("rerank_score"),
+                }
+                for index, document in enumerate(documents, start=1)
+            ],
         }
         report.append(entry)
-        print(render_case_line(entry))
+        print(render_case_line(entry, show_top=args.show_top))
 
     summary = {
         "total": len(report),
@@ -73,6 +107,9 @@ def main() -> None:
             json.dumps({"summary": summary, "cases": report}, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+
+    if args.fail_on_miss and summary["failed"] > 0:
+        raise SystemExit(1)
 
 
 def post_json(url: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -93,11 +130,22 @@ def find_match_rank(source_paths: list[str], expected_substrings: list[str]) -> 
     return None
 
 
-def render_case_line(entry: dict[str, Any]) -> str:
+def render_case_line(entry: dict[str, Any], show_top: int) -> str:
+    top_paths = entry["returned_source_paths"][:show_top]
+    top_paths_text = " | ".join(top_paths) if top_paths else "<no results>"
     if entry["success"]:
-        return f"[PASS] {entry['id']} rank={entry['matched_rank']} question={entry['question']}"
-    return f"[FAIL] {entry['id']} rank=- question={entry['question']}"
+        return (
+            f"[PASS] {entry['id']} rank={entry['matched_rank']} question={entry['question']}\n"
+            f"       top={top_paths_text}"
+        )
+    return (
+        f"[FAIL] {entry['id']} rank=- question={entry['question']}\n"
+        f"       top={top_paths_text}"
+    )
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(130)

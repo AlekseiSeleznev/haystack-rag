@@ -126,6 +126,28 @@ Run retrieval evaluation:
 python3 scripts/evaluate_retrieval.py --cases eval/retrieval_cases.json
 ```
 
+Run only a subset of cases:
+
+```bash
+python3 scripts/evaluate_retrieval.py --cases eval/retrieval_cases.json --case oauth
+```
+
+Fail the command when at least one case misses:
+
+```bash
+python3 scripts/evaluate_retrieval.py \
+  --cases eval/retrieval_cases.json \
+  --fail-on-miss
+```
+
+Save a JSON report:
+
+```bash
+python3 scripts/evaluate_retrieval.py \
+  --cases eval/retrieval_cases.json \
+  --output eval/report.json
+```
+
 Example filtered retrieval request:
 
 ```bash
@@ -184,6 +206,32 @@ Once connected, Codex will see `doc_search` as an MCP tool and can call it direc
 - `group_by`
 - `group_size`
 - `score_threshold`
+
+## Real-Question Workflow
+
+Base evaluation set:
+- [retrieval_cases.json](/home/as/Документы/AI_PROJECTS/haystack-rag/eval/retrieval_cases.json)
+
+Template for your own real questions:
+- [retrieval_cases.user-template.json](/home/as/Документы/AI_PROJECTS/haystack-rag/eval/retrieval_cases.user-template.json)
+
+Recommended workflow:
+1. Copy the template to `eval/retrieval_cases.user.json`.
+2. Add your real questions and expected source paths.
+3. Run:
+
+```bash
+python3 scripts/evaluate_retrieval.py \
+  --cases eval/retrieval_cases.user.json \
+  --fail-on-miss \
+  --output eval/retrieval_cases.user.report.json
+```
+
+4. If something misses, inspect the printed top source paths and refine:
+- question wording
+- metadata filters
+- chunking / parser strategy
+- retrieval or reranking settings
 
 ## Next Steps
 

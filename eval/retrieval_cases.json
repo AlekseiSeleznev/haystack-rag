@@ -11,9 +11,124 @@
     ]
   },
   {
+    "id": "sap_auth_oauth2",
+    "request": {
+      "question": "Authentication Using OAuth 2.0",
+      "domain": "work",
+      "category": "puig"
+    },
+    "expect_any_source_contains": [
+      "WORK/PUIG/SAP SuccessFactors API Reference Guide.pdf"
+    ]
+  },
+  {
+    "id": "sap_query_operations",
+    "request": {
+      "question": "Query Operations key predicate pagination system query options",
+      "domain": "work",
+      "category": "puig"
+    },
+    "expect_any_source_contains": [
+      "WORK/PUIG/SAP SuccessFactors API Reference Guide.pdf"
+    ]
+  },
+  {
+    "id": "sap_batch_operations",
+    "request": {
+      "question": "Batch Operations upsert changeset request bodies",
+      "domain": "work",
+      "category": "puig"
+    },
+    "expect_any_source_contains": [
+      "WORK/PUIG/SAP SuccessFactors API Reference Guide.pdf"
+    ]
+  },
+  {
+    "id": "sap_metadata_dictionary",
+    "request": {
+      "question": "Retrieving Metadata OData API Data Dictionary tool",
+      "domain": "work",
+      "category": "puig"
+    },
+    "expect_any_source_contains": [
+      "WORK/PUIG/SAP SuccessFactors API Reference Guide.pdf"
+    ]
+  },
+  {
+    "id": "sap_learning_admin_assignment",
+    "request": {
+      "question": "admin userService v1 metadata call for administrator assignment",
+      "domain": "work",
+      "category": "puig"
+    },
+    "expect_any_source_contains": [
+      "WORK/PUIG/SAP SuccessFactors API Reference Guide.pdf"
+    ]
+  },
+  {
     "id": "onec_payroll_book",
     "request": {
       "question": "Настольная книга по оплате труда и ее расчету в 1С",
+      "domain": "1c",
+      "category": "books",
+      "language_hint": "ru"
+    },
+    "expect_any_source_contains": [
+      "1C/BOOKS/Харитонов_С_А_Настольная_книга_по_оплате_труда_и_ее_расчету_в_1С.PDF"
+    ]
+  },
+  {
+    "id": "onec_hr_settings",
+    "request": {
+      "question": "Настройки кадрового и воинского учета",
+      "domain": "1c",
+      "category": "books",
+      "language_hint": "ru"
+    },
+    "expect_any_source_contains": [
+      "1C/BOOKS/Харитонов_С_А_Настольная_книга_по_оплате_труда_и_ее_расчету_в_1С.PDF"
+    ]
+  },
+  {
+    "id": "onec_north_bonus",
+    "request": {
+      "question": "Северная надбавка территориальные условия",
+      "domain": "1c",
+      "category": "books",
+      "language_hint": "ru"
+    },
+    "expect_any_source_contains": [
+      "1C/BOOKS/Харитонов_С_А_Настольная_книга_по_оплате_труда_и_ее_расчету_в_1С.PDF"
+    ]
+  },
+  {
+    "id": "onec_foreign_business_trip",
+    "request": {
+      "question": "суточные при командировках за пределы РФ",
+      "domain": "1c",
+      "category": "books",
+      "language_hint": "ru"
+    },
+    "expect_any_source_contains": [
+      "1C/BOOKS/Харитонов_С_А_Настольная_книга_по_оплате_труда_и_ее_расчету_в_1С.PDF"
+    ]
+  },
+  {
+    "id": "onec_fss_direct_payments",
+    "request": {
+      "question": "Настройки способов прямых выплат ФСС",
+      "domain": "1c",
+      "category": "books",
+      "language_hint": "ru"
+    },
+    "expect_any_source_contains": [
+      "1C/BOOKS/Харитонов_С_А_Настольная_книга_по_оплате_труда_и_ее_расчету_в_1С.PDF"
+    ]
+  },
+  {
+    "id": "onec_joint_work_payment",
+    "request": {
+      "question": "Оплата за работу по совместительству",
       "domain": "1c",
       "category": "books",
       "language_hint": "ru"
