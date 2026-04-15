@@ -32,6 +32,29 @@ services:
       - ./src:/app/src
     command: ["bash", "/app/scripts/start-hayhooks.sh"]
 
+  hayhooks-mcp:
+    build:
+      context: .
+      dockerfile: services/hayhooks/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PYTHONPATH: /app/src
+      HAYHOOKS_PIPELINES_DIR: /app/config/pipelines
+      HAYHOOKS_ADDITIONAL_PYTHON_PATH: /app/src
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+    depends_on:
+      - qdrant
+    ports:
+      - "1417:1417"
+    volumes:
+      - ./config:/app/config
+      - ./data:/app/data
+      - ./scripts:/app/scripts
+      - ./src:/app/src
+    command: ["bash", "/app/scripts/start-hayhooks-mcp.sh"]
+
   ingestion:
     build:
       context: .

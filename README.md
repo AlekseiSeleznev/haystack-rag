@@ -60,6 +60,7 @@ docker compose run --rm ingestion python -m haystack_rag.ingestion.index_documen
 
 7. `Open WebUI` is preconfigured to use `Hayhooks` as an OpenAI-compatible backend.
 If you connect to `Hayhooks` directly from outside Docker, use `http://localhost:1416/v1`.
+8. `Hayhooks MCP` is exposed for Codex-compatible clients at `http://localhost:1417/mcp`.
 
 ## Current Scope
 
@@ -71,6 +72,7 @@ Implemented in this scaffold:
 - optional source collapsing via `collapse_sources=true`
 - late-interaction reranking over the retrieved candidate set
 - chat completion mode for Open WebUI
+- MCP endpoint for Codex and other MCP clients
 - full reindex flow from raw source files
 - local embedding fallback via `fastembed`
 - retrieval evaluation script and sample case set
@@ -92,6 +94,12 @@ Start everything:
 ```bash
 docker compose up -d
 ```
+
+The compose stack exposes:
+- `Open WebUI`: `http://localhost:3000`
+- `Hayhooks OpenAI-compatible API`: `http://localhost:1416`
+- `Hayhooks MCP`: `http://localhost:1417/mcp`
+- `Qdrant`: `http://localhost:6333`
 
 Rebuild the index from scratch:
 
@@ -149,6 +157,33 @@ curl -X POST http://localhost:1416/doc_search/run \
     "collapse_sources": true
   }'
 ```
+
+## Codex MCP Integration
+
+Add this to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.haystack-rag]
+url = "http://localhost:1417/mcp"
+```
+
+After updating the config, restart Codex or the VS Code Codex extension so it reloads MCP servers.
+
+Once connected, Codex will see `doc_search` as an MCP tool and can call it directly with the same fields used by `/doc_search/run`, including:
+- `question`
+- `mode`
+- `top_k`
+- `domain`
+- `category`
+- `subcategory`
+- `source_dir`
+- `source_name`
+- `extension`
+- `language_hint`
+- `collapse_sources`
+- `group_by`
+- `group_size`
+- `score_threshold`
 
 ## Next Steps
 
