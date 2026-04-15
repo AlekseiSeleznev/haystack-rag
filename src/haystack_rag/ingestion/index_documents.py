@@ -94,13 +94,14 @@ def build_documents(
         if path.name.startswith("."):
             continue
 
-        source_units = extract_source_units(path=path)
+        source_units = extract_source_units(path=path, pdf_extractor=config.pdf_extractor)
         unit_texts = [unit.text for unit in source_units if unit.text.strip()]
         if not unit_texts:
             continue
 
         combined_text, page_spans = combine_source_units(source_units)
         metadata = build_metadata(path=path, input_dir=input_dir, text=combined_text)
+        extractor = infer_extractor(source_units)
         chunks = chunk_text_with_offsets(
             text=combined_text,
             chunk_size=config.chunk_size,
@@ -112,6 +113,7 @@ def build_documents(
                 content=chunk.content,
                 meta={
                     **metadata,
+                    "extractor": extractor,
                     **resolve_page_metadata(page_spans=page_spans, start=chunk.start, end=chunk.end),
                     "chunk_index": chunk_index,
                 },
@@ -136,7 +138,7 @@ def create_document_embedder(config: AppConfig) -> OpenAIDocumentEmbedder | Fast
     )
 
 
-def extract_source_units(path: Path) -> list[SourceUnit]:
+def extract_source_units(path: Path, pdf_extractor: str = "hybrid") -> list[SourceUnit]:
     suffix = path.suffix.lower()
     if suffix in TEXT_EXTENSIONS:
         text = path.read_text(encoding="utf-8", errors="ignore").strip()
@@ -144,7 +146,7 @@ def extract_source_units(path: Path) -> list[SourceUnit]:
 
     try:
         if suffix == ".pdf":
-            return extract_pdf_units(path)
+            return extract_pdf_units(path=path, mode=pdf_extractor)
         if suffix == ".docx":
             text = extract_docx_text(path)
             return [SourceUnit(text=text, meta={})] if text else []
@@ -162,7 +164,25 @@ def extract_source_units(path: Path) -> list[SourceUnit]:
     return []
 
 
-def extract_pdf_units(path: Path) -> list[SourceUnit]:
+def extract_pdf_units(path: Path, mode: str = "hybrid") -> list[SourceUnit]:
+    normalized_mode = mode.strip().lower()
+    if normalized_mode == "pypdf":
+        return extract_pdf_units_with_pypdf(path)
+
+    if normalized_mode == "docling":
+        return extract_pdf_units_with_docling(path) or extract_pdf_units_with_pypdf(path)
+
+    pypdf_units = extract_pdf_units_with_pypdf(path)
+    if not should_retry_pdf_with_docling(pypdf_units):
+        return pypdf_units
+
+    docling_units = extract_pdf_units_with_docling(path)
+    if docling_units:
+        return docling_units
+    return pypdf_units
+
+
+def extract_pdf_units_with_pypdf(path: Path) -> list[SourceUnit]:
     reader = PdfReader(str(path))
     units: list[SourceUnit] = []
     for page_number, page in enumerate(reader.pages, start=1):
@@ -177,10 +197,63 @@ def extract_pdf_units(path: Path) -> list[SourceUnit]:
                     "page_start": page_number,
                     "page_end": page_number,
                     "page_label": f"p.{page_number}",
+                    "extractor": "pypdf",
                 },
             )
         )
     return units
+
+
+def extract_pdf_units_with_docling(path: Path) -> list[SourceUnit]:
+    try:
+        from docling.document_converter import DocumentConverter
+    except Exception as exc:
+        print(f"Docling unavailable for {path}: {exc}")
+        return []
+
+    try:
+        converter = DocumentConverter()
+        result = converter.convert(str(path))
+        text = clean_docling_text(result.document.export_to_markdown())
+    except Exception as exc:
+        print(f"Docling parser failed for {path}: {exc}")
+        return []
+
+    if not text:
+        return []
+
+    return [SourceUnit(text=text, meta={"extractor": "docling"})]
+
+
+def should_retry_pdf_with_docling(units: list[SourceUnit]) -> bool:
+    if not units:
+        return True
+
+    page_count = len(units)
+    nonempty_units = [unit for unit in units if unit.text.strip()]
+    if not nonempty_units:
+        return True
+
+    combined_text = " ".join(unit.text for unit in nonempty_units)
+    avg_chars_per_page = len(combined_text) / max(page_count, 1)
+    broken_word_count = len(re.findall(r"(?<=[A-Za-zА-Яа-яЁё])\s+-\s+(?=[A-Za-zА-Яа-яЁё])", combined_text))
+    empty_ratio = 1 - (len(nonempty_units) / max(page_count, 1))
+
+    if avg_chars_per_page < 120:
+        return True
+    if empty_ratio > 0.35:
+        return True
+    if broken_word_count >= max(3, page_count):
+        return True
+    return False
+
+
+def infer_extractor(source_units: list[SourceUnit]) -> str:
+    for unit in source_units:
+        extractor = unit.meta.get("extractor")
+        if isinstance(extractor, str) and extractor:
+            return extractor
+    return "default"
 
 
 def combine_source_units(source_units: list[SourceUnit]) -> tuple[str, list[dict[str, int]]]:
@@ -319,6 +392,13 @@ def clean_pdf_text(text: str) -> str:
     cleaned = re.sub(r"[ \t]+", " ", cleaned)
     cleaned = re.sub(r" *\n{2,} *", "\n\n", cleaned)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip()
+
+
+def clean_docling_text(text: str) -> str:
+    cleaned = text.replace("\u00ad", "")
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    cleaned = re.sub(r"[ \t]+", " ", cleaned)
     return cleaned.strip()
 
 

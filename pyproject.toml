@@ -22,6 +22,11 @@ dependencies = [
   "qdrant-haystack>=5.0.0",
 ]
 
+[project.optional-dependencies]
+docling = [
+  "docling>=2.88.0",
+]
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 

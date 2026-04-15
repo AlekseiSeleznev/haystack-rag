@@ -6,6 +6,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+ARG INSTALL_DOCLING=false
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential curl \
     && rm -rf /var/lib/apt/lists/*
@@ -16,7 +18,6 @@ COPY scripts /app/scripts
 
 RUN chmod +x /app/scripts/start-hayhooks.sh \
     && pip install --upgrade pip \
-    && pip install -e .
+    && if [ "$INSTALL_DOCLING" = "true" ]; then pip install -e '.[docling]'; else pip install -e .; fi
 
 CMD ["bash", "/app/scripts/start-hayhooks.sh"]
-

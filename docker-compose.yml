@@ -11,6 +11,8 @@ services:
     build:
       context: .
       dockerfile: services/hayhooks/Dockerfile
+      args:
+        INSTALL_DOCLING: ${INSTALL_DOCLING:-false}
     restart: unless-stopped
     env_file:
       - .env
@@ -36,6 +38,8 @@ services:
     build:
       context: .
       dockerfile: services/hayhooks/Dockerfile
+      args:
+        INSTALL_DOCLING: ${INSTALL_DOCLING:-false}
     restart: unless-stopped
     env_file:
       - .env
@@ -59,6 +63,8 @@ services:
     build:
       context: .
       dockerfile: services/hayhooks/Dockerfile
+      args:
+        INSTALL_DOCLING: ${INSTALL_DOCLING:-false}
     profiles: ["tools"]
     env_file:
       - .env

@@ -40,6 +40,7 @@ cp .env.example .env
 - `OPENAI_API_KEY`, if you want OpenAI-compatible providers
 - `EMBEDDING_PROVIDER=openai`, if you want external embeddings
 - `CHAT_PROVIDER=openai`, if you want LLM answers instead of retrieval-only fallback
+- `INSTALL_DOCLING=true` and rebuild, if you want Docling-enabled PDF extraction
 
 3. Put source files into `/home/as/Документы/RAG_DOCS`.
 Nested subfolders are indexed and preserved in `source_path` metadata.
@@ -79,7 +80,10 @@ Implemented in this scaffold:
 - page-level provenance for PDF chunks (`page_number` for single-page chunks, `page_start/page_end/page_label` for multi-page chunks)
 - lightweight parser path:
   - text-like files are read directly
-  - PDF via `pypdf` with newline cleanup heuristics and repair of broken word splits like `усло - вия`
+  - PDF via `PDF_EXTRACTOR=hybrid` by default:
+    - first `pypdf`
+    - fallback to `Docling` for clearly poor PDF extracts when the image was built with `INSTALL_DOCLING=true`
+    - `PDF_EXTRACTOR=pypdf` and `PDF_EXTRACTOR=docling` are available for forced comparison
   - DOCX via `python-docx`
   - PPTX via `python-pptx`
   - XLSX via `openpyxl`
@@ -95,6 +99,14 @@ Start everything:
 ```bash
 docker compose up -d
 ```
+
+Enable Docling support and rebuild the Python image:
+
+```bash
+INSTALL_DOCLING=true docker compose build ingestion hayhooks hayhooks-mcp
+```
+
+Then keep `PDF_EXTRACTOR=hybrid` or set `PDF_EXTRACTOR=docling` for forced use.
 
 The compose stack exposes:
 - `Open WebUI`: `http://localhost:3000`
@@ -202,6 +214,7 @@ The response includes:
 - `reranking_enabled`: reranker is configured for the service
 - `reranking_requested`: this request asked to use reranking
 - `reranking_applied`: reranking was actually used for this request
+- `extractor`: which ingestion extractor produced the chunk, for example `pypdf` or `docling`
 - `source_ref`: human-readable source reference like `file.pdf (p.246)` or `file.pdf (pp.245-246)`
 - page metadata for PDF-backed chunks when available:
   - `page_number` for single-page chunks

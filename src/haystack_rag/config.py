@@ -19,6 +19,7 @@ class AppConfig:
     top_k: int
     chunk_size: int
     chunk_overlap: int
+    pdf_extractor: str
     embedding_provider: str
     embedding_model: str
     embedding_dimensions: int
@@ -48,6 +49,7 @@ class AppConfig:
             top_k=int(os.getenv("TOP_K", "8")),
             chunk_size=int(os.getenv("CHUNK_SIZE", "1400")),
             chunk_overlap=int(os.getenv("CHUNK_OVERLAP", "200")),
+            pdf_extractor=os.getenv("PDF_EXTRACTOR", "hybrid").strip().lower(),
             embedding_provider=os.getenv("EMBEDDING_PROVIDER", "fastembed").strip().lower(),
             embedding_model=os.getenv(
                 "EMBEDDING_MODEL",

@@ -4,9 +4,12 @@ import unittest
 
 from haystack_rag.ingestion.index_documents import (
     SourceUnit,
+    clean_docling_text,
     clean_pdf_text,
     combine_source_units,
+    infer_extractor,
     resolve_page_metadata,
+    should_retry_pdf_with_docling,
 )
 
 
@@ -61,6 +64,39 @@ class IngestionTests(unittest.TestCase):
         self.assertEqual(metadata["page_start"], 10)
         self.assertEqual(metadata["page_end"], 11)
         self.assertEqual(metadata["page_label"], "pp.10-11")
+
+    def test_should_retry_pdf_with_docling_for_empty_or_sparse_text(self) -> None:
+        self.assertTrue(should_retry_pdf_with_docling([]))
+        self.assertTrue(
+            should_retry_pdf_with_docling(
+                [
+                    SourceUnit(text="short text", meta={"page_number": 1, "extractor": "pypdf"}),
+                    SourceUnit(text="", meta={"page_number": 2, "extractor": "pypdf"}),
+                ]
+            )
+        )
+
+    def test_should_not_retry_pdf_with_docling_for_healthy_extract(self) -> None:
+        units = [
+            SourceUnit(
+                text="Это длинный и нормальный текст страницы " * 10,
+                meta={"page_number": 1, "extractor": "pypdf"},
+            ),
+            SourceUnit(
+                text="Это ещё один длинный и нормальный текст страницы " * 10,
+                meta={"page_number": 2, "extractor": "pypdf"},
+            ),
+        ]
+        self.assertFalse(should_retry_pdf_with_docling(units))
+
+    def test_clean_docling_text_preserves_structure(self) -> None:
+        text = "## Header\n\n\nParagraph\t\twith  spaces"
+        cleaned = clean_docling_text(text)
+        self.assertEqual(cleaned, "## Header\n\nParagraph with spaces")
+
+    def test_infer_extractor_from_source_units(self) -> None:
+        extractor = infer_extractor([SourceUnit(text="text", meta={"extractor": "docling"})])
+        self.assertEqual(extractor, "docling")
 
 
 if __name__ == "__main__":
