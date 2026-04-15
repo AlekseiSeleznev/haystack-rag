@@ -1,6 +1,6 @@
 COMPOSE = docker compose
 
-.PHONY: up down restart logs reindex eval eval-compare smoke
+.PHONY: up down restart logs reindex eval eval-compare eval-report smoke
 
 up:
 	$(COMPOSE) up -d
@@ -22,6 +22,9 @@ eval:
 
 eval-compare:
 	python3 scripts/evaluate_retrieval.py --cases eval/retrieval_cases.json --compare-reranking
+
+eval-report:
+	python3 scripts/evaluate_retrieval.py --cases eval/retrieval_cases.json --fail-on-miss --output eval/report.json --markdown-output eval/report.md
 
 smoke:
 	python3 scripts/smoke_test_stack.py

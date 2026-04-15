@@ -10,6 +10,8 @@ __pycache__/
 
 data/qdrant/
 data/cache/
+eval/report.json
+eval/report.md
 data/input/*
 !data/input/
 !data/input/.gitkeep

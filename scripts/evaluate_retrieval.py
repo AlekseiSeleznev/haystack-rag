@@ -29,6 +29,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--top-k", type=int, default=8, help="Top-K documents to request.")
     parser.add_argument("--output", default="", help="Optional path to save the JSON report.")
     parser.add_argument(
+        "--markdown-output",
+        default="",
+        help="Optional path to save a Markdown summary report.",
+    )
+    parser.add_argument(
         "--case",
         default="",
         help="Optional substring filter for case id or question.",
@@ -74,6 +79,7 @@ def main() -> None:
     )
     print_summary(evaluation["summary"])
     maybe_write_report(args.output, evaluation)
+    maybe_write_markdown_report(args.markdown_output, evaluation)
     maybe_fail(args.fail_on_miss, evaluation["summary"])
 
 
@@ -112,6 +118,14 @@ def compare_reranking(args: argparse.Namespace, cases: list[dict[str, Any]]) -> 
 
     maybe_write_report(
         args.output,
+        {
+            "reranking_on": reranking_on,
+            "reranking_off": reranking_off,
+            "comparison": comparison,
+        },
+    )
+    maybe_write_markdown_report(
+        args.markdown_output,
         {
             "reranking_on": reranking_on,
             "reranking_off": reranking_off,
@@ -368,6 +382,93 @@ def maybe_write_report(path_str: str, payload: dict[str, Any]) -> None:
         json.dumps(payload, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+
+
+def maybe_write_markdown_report(path_str: str, payload: dict[str, Any]) -> None:
+    if not path_str:
+        return
+    Path(path_str).write_text(render_markdown_report(payload), encoding="utf-8")
+
+
+def render_markdown_report(payload: dict[str, Any]) -> str:
+    if "comparison" in payload:
+        return render_compare_markdown_report(payload)
+    return render_single_markdown_report(payload)
+
+
+def render_single_markdown_report(payload: dict[str, Any]) -> str:
+    summary = payload["summary"]
+    lines = [
+        "# Retrieval Evaluation Report",
+        "",
+        f"- Total: {summary['total']}",
+        f"- Passed: {summary['passed']}",
+        f"- Failed: {summary['failed']}",
+        f"- Pass rate: {summary['pass_rate']}%",
+        f"- Reranking mode: {summary['reranking_mode']}",
+        "",
+        "## Cases",
+        "",
+    ]
+
+    for case in payload["cases"]:
+        lines.extend(render_case_markdown(case))
+
+    return "\n".join(lines).strip() + "\n"
+
+
+def render_compare_markdown_report(payload: dict[str, Any]) -> str:
+    comparison = payload["comparison"]
+    on_summary = payload["reranking_on"]["summary"]
+    off_summary = payload["reranking_off"]["summary"]
+    lines = [
+        "# Retrieval Reranking Comparison",
+        "",
+        "## Summary",
+        "",
+        f"- Reranking ON: {on_summary['passed']}/{on_summary['total']} passed ({on_summary['pass_rate']}%)",
+        f"- Reranking OFF: {off_summary['passed']}/{off_summary['total']} passed ({off_summary['pass_rate']}%)",
+        f"- Improved: {comparison['summary']['improved']}",
+        f"- Worsened: {comparison['summary']['worsened']}",
+        f"- Unchanged: {comparison['summary']['unchanged']}",
+        "",
+        "## Comparison",
+        "",
+    ]
+    lines.extend(f"- {line}" for line in comparison["lines"])
+    lines.extend(["", "## Reranking ON Cases", ""])
+    for case in payload["reranking_on"]["cases"]:
+        lines.extend(render_case_markdown(case))
+    lines.extend(["", "## Reranking OFF Cases", ""])
+    for case in payload["reranking_off"]["cases"]:
+        lines.extend(render_case_markdown(case))
+    return "\n".join(lines).strip() + "\n"
+
+
+def render_case_markdown(case: dict[str, Any]) -> list[str]:
+    top_documents = case.get("top_documents", [])
+    lines = [
+        f"### {case['id']}",
+        "",
+        f"- Success: {case['success']}",
+        f"- Question: {case['question']}",
+        f"- Source rank: {display_rank(case['matched_rank'])}",
+        f"- Content rank: {display_optional_rank(case['matched_content_rank'], available=bool(case['expected_content']))}",
+        f"- Reranking: {case['reranking_mode']} (requested={case['reranking_requested']}, applied={case['reranking_applied']})",
+    ]
+    if case["expected"]:
+        lines.append(f"- Expected source contains: {', '.join(case['expected'])}")
+    if case["expected_content"]:
+        lines.append(f"- Expected content contains: {', '.join(case['expected_content'])}")
+
+    lines.extend(["", "Top documents:", ""])
+    for document in top_documents[:5]:
+        lines.append(
+            f"- #{document['rank']} {document['source_ref']} "
+            f"(score={document['score']}, retrieval={document['retrieval_score']}, rerank={document['rerank_score']})"
+        )
+    lines.append("")
+    return lines
 
 
 def maybe_fail(fail_on_miss: bool, summary: dict[str, Any]) -> None:

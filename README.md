@@ -149,6 +149,15 @@ python3 scripts/evaluate_retrieval.py \
   --output eval/report.json
 ```
 
+Save both JSON and Markdown reports:
+
+```bash
+python3 scripts/evaluate_retrieval.py \
+  --cases eval/retrieval_cases.json \
+  --output eval/report.json \
+  --markdown-output eval/report.md
+```
+
 Run the same evaluation with reranking forced off:
 
 ```bash
@@ -164,6 +173,8 @@ python3 scripts/evaluate_retrieval.py \
   --cases eval/retrieval_cases.json \
   --compare-reranking
 ```
+
+You can also save the comparison as Markdown with `--markdown-output`.
 
 When a case contains `expect_any_content_contains`, the comparison uses the content-hit rank rather than only the source-file rank.
 
@@ -255,7 +266,8 @@ Recommended workflow:
 python3 scripts/evaluate_retrieval.py \
   --cases eval/retrieval_cases.user.json \
   --fail-on-miss \
-  --output eval/retrieval_cases.user.report.json
+  --output eval/retrieval_cases.user.report.json \
+  --markdown-output eval/retrieval_cases.user.report.md
 ```
 
 4. If something misses, inspect the printed top source paths and refine:
