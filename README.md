@@ -127,6 +127,12 @@ Run retrieval evaluation:
 python3 scripts/evaluate_retrieval.py --cases eval/retrieval_cases.json
 ```
 
+Run local unit tests:
+
+```bash
+docker compose run --rm ingestion python -m unittest discover -s /app/tests -v
+```
+
 Run only a subset of cases:
 
 ```bash

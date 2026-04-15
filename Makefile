@@ -1,6 +1,6 @@
 COMPOSE = docker compose
 
-.PHONY: up down restart logs reindex eval eval-compare eval-report smoke
+.PHONY: up down restart logs reindex eval eval-compare eval-report smoke test
 
 up:
 	$(COMPOSE) up -d
@@ -28,3 +28,6 @@ eval-report:
 
 smoke:
 	python3 scripts/smoke_test_stack.py
+
+test:
+	$(COMPOSE) run --rm ingestion python -m unittest discover -s /app/tests -v

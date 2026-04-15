@@ -69,7 +69,9 @@ services:
       - qdrant
     volumes:
       - ./data:/app/data
+      - ./scripts:/app/scripts
       - ./src:/app/src
+      - ./tests:/app/tests
       - ${HOST_SOURCE_DOCS_DIR:-/home/as/Документы/RAG_DOCS}:${SOURCE_DOCS_DIR:-/documents/rag_docs}:ro
     command:
       - python
