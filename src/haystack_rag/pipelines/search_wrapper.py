@@ -44,6 +44,7 @@ class PipelineWrapper(BasePipelineWrapper):
         question: str,
         mode: str = "search",
         top_k: int | None = None,
+        reranking: bool | None = None,
         collapse_sources: bool = False,
         group_by: str | None = None,
         group_size: int | None = None,
@@ -71,6 +72,7 @@ class PipelineWrapper(BasePipelineWrapper):
         documents = self._retrieve(
             question=question,
             top_k=top_k,
+            reranking=reranking,
             filters=applied_filters,
             score_threshold=score_threshold,
             group_by=self._resolve_group_by(group_by=group_by, collapse_sources=collapse_sources),
@@ -80,7 +82,8 @@ class PipelineWrapper(BasePipelineWrapper):
                 collapse_sources=collapse_sources,
             ),
         )
-        reranking_applied = self.reranker is not None and self._resolve_group_by(
+        reranking_requested = self._reranking_requested(reranking=reranking)
+        reranking_applied = reranking_requested and self._resolve_group_by(
             group_by=group_by,
             collapse_sources=collapse_sources,
         ) is None
@@ -90,6 +93,7 @@ class PipelineWrapper(BasePipelineWrapper):
             "mode": mode,
             "applied_filters": applied_filters,
             "reranking_enabled": self.reranker is not None,
+            "reranking_requested": reranking_requested,
             "reranking_applied": reranking_applied,
             "group_by": self._resolve_group_by(group_by=group_by, collapse_sources=collapse_sources),
             "group_size": self._resolve_group_size(
@@ -113,6 +117,7 @@ class PipelineWrapper(BasePipelineWrapper):
         documents = self._retrieve(
             question=question,
             top_k=body.get("top_k"),
+            reranking=body.get("reranking"),
             filters=self._build_filters(
                 domain=body.get("domain"),
                 category=body.get("category"),
@@ -140,6 +145,7 @@ class PipelineWrapper(BasePipelineWrapper):
         self,
         question: str,
         top_k: int | None = None,
+        reranking: bool | None = None,
         filters: dict[str, Any] | list[dict[str, Any]] | None = None,
         score_threshold: float | None = None,
         group_by: str | None = None,
@@ -147,7 +153,8 @@ class PipelineWrapper(BasePipelineWrapper):
     ) -> list[Document]:
         requested_top_k = top_k or self.config.top_k
         retrieval_top_k = requested_top_k
-        if self.reranker is not None and group_by is None:
+        reranking_requested = self._reranking_requested(reranking=reranking)
+        if reranking_requested and group_by is None:
             retrieval_top_k = max(requested_top_k, self.config.reranker_candidates)
 
         result = self.pipeline.run(
@@ -163,7 +170,7 @@ class PipelineWrapper(BasePipelineWrapper):
             }
         )
         documents = result["retriever"]["documents"]
-        if self.reranker is not None and documents and group_by is None:
+        if reranking_requested and documents and group_by is None:
             documents = self._rerank_documents(question=question, documents=documents, top_k=requested_top_k)
         else:
             documents = documents[:requested_top_k]
@@ -403,3 +410,8 @@ class PipelineWrapper(BasePipelineWrapper):
         if group_by or collapse_sources:
             return 1
         return None
+
+    def _reranking_requested(self, reranking: bool | None) -> bool:
+        if reranking is None:
+            return self.reranker is not None
+        return bool(reranking) and self.reranker is not None

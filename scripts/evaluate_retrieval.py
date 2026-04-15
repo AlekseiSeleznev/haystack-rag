@@ -8,6 +8,11 @@ from typing import Any
 from urllib import request
 
 
+RERANKING_AUTO = "auto"
+RERANKING_ON = "on"
+RERANKING_OFF = "off"
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Evaluate retrieval quality against a case file.")
     parser.add_argument(
@@ -38,28 +43,117 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Exit with code 1 if at least one case fails.",
     )
+    parser.add_argument(
+        "--reranking",
+        choices=[RERANKING_AUTO, RERANKING_ON, RERANKING_OFF],
+        default=RERANKING_AUTO,
+        help="Override per-request reranking behavior.",
+    )
+    parser.add_argument(
+        "--compare-reranking",
+        action="store_true",
+        help="Run the same case set twice and compare reranking on vs off.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    cases_path = Path(args.cases).resolve()
+    cases = load_cases(args.cases, args.case)
+    if args.compare_reranking:
+        compare_reranking(args=args, cases=cases)
+        return
+
+    evaluation = evaluate_cases(
+        endpoint=args.endpoint,
+        cases=cases,
+        top_k=args.top_k,
+        show_top=args.show_top,
+        reranking_mode=args.reranking,
+    )
+    print_summary(evaluation["summary"])
+    maybe_write_report(args.output, evaluation)
+    maybe_fail(args.fail_on_miss, evaluation["summary"])
+
+
+def compare_reranking(args: argparse.Namespace, cases: list[dict[str, Any]]) -> None:
+    reranking_on = evaluate_cases(
+        endpoint=args.endpoint,
+        cases=cases,
+        top_k=args.top_k,
+        show_top=args.show_top,
+        reranking_mode=RERANKING_ON,
+        heading="=== Reranking ON ===",
+    )
+    reranking_off = evaluate_cases(
+        endpoint=args.endpoint,
+        cases=cases,
+        top_k=args.top_k,
+        show_top=args.show_top,
+        reranking_mode=RERANKING_OFF,
+        heading="=== Reranking OFF ===",
+    )
+
+    comparison = build_comparison(
+        on_cases=reranking_on["cases"],
+        off_cases=reranking_off["cases"],
+    )
+
+    print("\n=== Comparison ===")
+    for line in comparison["lines"]:
+        print(line)
+    print(
+        "\nComparison Summary: "
+        f"improved={comparison['summary']['improved']} "
+        f"worsened={comparison['summary']['worsened']} "
+        f"unchanged={comparison['summary']['unchanged']}"
+    )
+
+    maybe_write_report(
+        args.output,
+        {
+            "reranking_on": reranking_on,
+            "reranking_off": reranking_off,
+            "comparison": comparison,
+        },
+    )
+    if args.fail_on_miss and (
+        reranking_on["summary"]["failed"] > 0 or reranking_off["summary"]["failed"] > 0
+    ):
+        raise SystemExit(1)
+
+
+def load_cases(cases_path_str: str, case_filter: str) -> list[dict[str, Any]]:
+    cases_path = Path(cases_path_str).resolve()
     cases = json.loads(cases_path.read_text(encoding="utf-8"))
-    if args.case:
-        needle = args.case.casefold()
-        cases = [
-            case
-            for case in cases
-            if needle in case["id"].casefold() or needle in case["request"]["question"].casefold()
-        ]
+    if not case_filter:
+        return cases
+
+    needle = case_filter.casefold()
+    return [
+        case
+        for case in cases
+        if needle in case["id"].casefold() or needle in case["request"]["question"].casefold()
+    ]
+
+
+def evaluate_cases(
+    *,
+    endpoint: str,
+    cases: list[dict[str, Any]],
+    top_k: int,
+    show_top: int,
+    reranking_mode: str,
+    heading: str = "",
+) -> dict[str, Any]:
+    if heading:
+        print(heading)
 
     report: list[dict[str, Any]] = []
     passed = 0
     for case in cases:
-        payload = dict(case["request"])
-        payload.setdefault("mode", "search")
-        payload.setdefault("top_k", args.top_k)
-        response = post_json(args.endpoint, payload)
+        payload = build_payload(case=case, top_k=top_k, reranking_mode=reranking_mode)
+        response = post_json(endpoint, payload)
 
         documents = response["result"]["documents"]
         source_paths = [str(document.get("meta", {}).get("source_path", "")) for document in documents]
@@ -76,6 +170,10 @@ def main() -> None:
             "matched_rank": matched_rank,
             "expected": expected_substrings,
             "returned_source_paths": source_paths,
+            "reranking_mode": reranking_mode,
+            "reranking_enabled": response["result"].get("reranking_enabled"),
+            "reranking_requested": response["result"].get("reranking_requested"),
+            "reranking_applied": response["result"].get("reranking_applied"),
             "top_documents": [
                 {
                     "rank": index,
@@ -88,28 +186,27 @@ def main() -> None:
             ],
         }
         report.append(entry)
-        print(render_case_line(entry, show_top=args.show_top))
+        print(render_case_line(entry, show_top=show_top))
 
     summary = {
         "total": len(report),
         "passed": passed,
         "failed": len(report) - passed,
         "pass_rate": round((passed / len(report)) * 100, 2) if report else 0.0,
+        "reranking_mode": reranking_mode,
     }
-    print(
-        "\nSummary: "
-        f"{summary['passed']}/{summary['total']} passed "
-        f"({summary['pass_rate']}% hit rate)"
-    )
+    return {"summary": summary, "cases": report}
 
-    if args.output:
-        Path(args.output).write_text(
-            json.dumps({"summary": summary, "cases": report}, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
 
-    if args.fail_on_miss and summary["failed"] > 0:
-        raise SystemExit(1)
+def build_payload(case: dict[str, Any], top_k: int, reranking_mode: str) -> dict[str, Any]:
+    payload = dict(case["request"])
+    payload.setdefault("mode", "search")
+    payload.setdefault("top_k", top_k)
+    if reranking_mode == RERANKING_ON:
+        payload["reranking"] = True
+    elif reranking_mode == RERANKING_OFF:
+        payload["reranking"] = False
+    return payload
 
 
 def post_json(url: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -133,15 +230,89 @@ def find_match_rank(source_paths: list[str], expected_substrings: list[str]) -> 
 def render_case_line(entry: dict[str, Any], show_top: int) -> str:
     top_paths = entry["returned_source_paths"][:show_top]
     top_paths_text = " | ".join(top_paths) if top_paths else "<no results>"
+    reranking_note = (
+        f" reranking={entry['reranking_mode']}"
+        f" requested={entry['reranking_requested']}"
+        f" applied={entry['reranking_applied']}"
+    )
     if entry["success"]:
         return (
-            f"[PASS] {entry['id']} rank={entry['matched_rank']} question={entry['question']}\n"
+            f"[PASS] {entry['id']} rank={entry['matched_rank']} question={entry['question']}{reranking_note}\n"
             f"       top={top_paths_text}"
         )
     return (
-        f"[FAIL] {entry['id']} rank=- question={entry['question']}\n"
+        f"[FAIL] {entry['id']} rank=- question={entry['question']}{reranking_note}\n"
         f"       top={top_paths_text}"
     )
+
+
+def build_comparison(on_cases: list[dict[str, Any]], off_cases: list[dict[str, Any]]) -> dict[str, Any]:
+    off_by_id = {entry["id"]: entry for entry in off_cases}
+    lines: list[str] = []
+    improved = 0
+    worsened = 0
+    unchanged = 0
+
+    for on_entry in on_cases:
+        off_entry = off_by_id[on_entry["id"]]
+        on_rank = normalize_rank(on_entry["matched_rank"])
+        off_rank = normalize_rank(off_entry["matched_rank"])
+        delta = off_rank - on_rank
+
+        if delta > 0:
+            improved += 1
+            verdict = "improved"
+        elif delta < 0:
+            worsened += 1
+            verdict = "worsened"
+        else:
+            unchanged += 1
+            verdict = "unchanged"
+
+        lines.append(
+            f"{on_entry['id']}: {verdict} "
+            f"(on_rank={display_rank(on_entry['matched_rank'])}, "
+            f"off_rank={display_rank(off_entry['matched_rank'])})"
+        )
+
+    return {
+        "summary": {
+            "improved": improved,
+            "worsened": worsened,
+            "unchanged": unchanged,
+        },
+        "lines": lines,
+    }
+
+
+def normalize_rank(rank: int | None) -> int:
+    return rank if rank is not None else 10**9
+
+
+def display_rank(rank: int | None) -> str:
+    return str(rank) if rank is not None else "miss"
+
+
+def print_summary(summary: dict[str, Any]) -> None:
+    print(
+        "\nSummary: "
+        f"{summary['passed']}/{summary['total']} passed "
+        f"({summary['pass_rate']}% hit rate)"
+    )
+
+
+def maybe_write_report(path_str: str, payload: dict[str, Any]) -> None:
+    if not path_str:
+        return
+    Path(path_str).write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def maybe_fail(fail_on_miss: bool, summary: dict[str, Any]) -> None:
+    if fail_on_miss and summary["failed"] > 0:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

@@ -148,6 +148,22 @@ python3 scripts/evaluate_retrieval.py \
   --output eval/report.json
 ```
 
+Run the same evaluation with reranking forced off:
+
+```bash
+python3 scripts/evaluate_retrieval.py \
+  --cases eval/retrieval_cases.json \
+  --reranking off
+```
+
+Compare reranking on vs off on the same case set:
+
+```bash
+python3 scripts/evaluate_retrieval.py \
+  --cases eval/retrieval_cases.json \
+  --compare-reranking
+```
+
 Example filtered retrieval request:
 
 ```bash
@@ -164,6 +180,7 @@ curl -X POST http://localhost:1416/doc_search/run \
 
 The response includes:
 - `reranking_enabled`: reranker is configured for the service
+- `reranking_requested`: this request asked to use reranking
 - `reranking_applied`: reranking was actually used for this request
 - `retrieval_score` and `rerank_score` inside each document `meta`
 
