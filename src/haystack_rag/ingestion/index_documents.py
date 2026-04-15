@@ -215,6 +215,9 @@ def infer_language_hint(relative_path: Path, text: str) -> str:
 def clean_pdf_text(text: str) -> str:
     cleaned = text.replace("\u00ad", "")
     cleaned = re.sub(r"(?<=\w)-\s*\n\s*(?=\w)", "", cleaned)
+    # Many PDF extracts insert artificial word breaks like "усло - вия" or "рас - положено".
+    # Repair them before collapsing line breaks so embeddings and exact phrase checks stay meaningful.
+    cleaned = re.sub(r"(?<=[A-Za-zА-Яа-яЁё])\s+-\s+(?=[A-Za-zА-Яа-яЁё])", "", cleaned)
     cleaned = re.sub(r"(?<!\n)\s*\n\s*(?!\n)", " ", cleaned)
     cleaned = re.sub(r"[ \t]+", " ", cleaned)
     cleaned = re.sub(r" *\n{2,} *", "\n\n", cleaned)

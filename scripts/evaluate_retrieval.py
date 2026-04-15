@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -234,7 +235,9 @@ def post_json(url: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def normalize_for_match(value: Any) -> str:
-    return " ".join(str(value).casefold().split())
+    normalized = str(value).casefold()
+    normalized = re.sub(r"(?<=[a-zа-яё])\s*-\s*(?=[a-zа-яё])", "", normalized)
+    return " ".join(normalized.split())
 
 
 def normalize_verbatim(value: Any) -> str:

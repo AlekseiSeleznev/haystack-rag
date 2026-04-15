@@ -78,7 +78,7 @@ Implemented in this scaffold:
 - retrieval evaluation script and sample case set
 - lightweight parser path:
   - text-like files are read directly
-  - PDF via `pypdf` with newline cleanup heuristics for less fragmented chunks
+  - PDF via `pypdf` with newline cleanup heuristics and repair of broken word splits like `усло - вия`
   - DOCX via `python-docx`
   - PPTX via `python-pptx`
   - XLSX via `openpyxl`
