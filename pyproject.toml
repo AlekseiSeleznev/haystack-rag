@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "haystack-rag"
+version = "0.1.0"
+description = "Local technical documentation RAG stack based on Haystack, Hayhooks, Open WebUI, and Qdrant."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "docling>=2.0.0",
+  "hayhooks>=0.5.0",
+  "haystack-ai>=2.0.0",
+  "openai>=1.0.0",
+  "python-dotenv>=1.0.0",
+  "qdrant-haystack>=5.0.0",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
