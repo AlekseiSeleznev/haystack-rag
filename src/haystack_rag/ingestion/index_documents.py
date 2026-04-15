@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
@@ -34,6 +35,19 @@ TEXT_EXTENSIONS = {
 RU_MARKERS = {"ru", "rus", "russian", "рус", "русский"}
 EN_MARKERS = {"en", "eng", "english", "англ", "english-language"}
 CYRILLIC_RE = re.compile(r"[А-Яа-яЁё]")
+
+
+@dataclass(frozen=True)
+class SourceUnit:
+    text: str
+    meta: dict[str, object]
+
+
+@dataclass(frozen=True)
+class ChunkSpan:
+    content: str
+    start: int
+    end: int
 
 
 def parse_args() -> argparse.Namespace:
@@ -80,16 +94,27 @@ def build_documents(
         if path.name.startswith("."):
             continue
 
-        text = extract_text(path=path)
-        if not text:
+        source_units = extract_source_units(path=path)
+        unit_texts = [unit.text for unit in source_units if unit.text.strip()]
+        if not unit_texts:
             continue
 
-        metadata = build_metadata(path=path, input_dir=input_dir, text=text)
-        chunks = chunk_text(text=text, chunk_size=config.chunk_size, overlap=config.chunk_overlap)
+        combined_text, page_spans = combine_source_units(source_units)
+        metadata = build_metadata(path=path, input_dir=input_dir, text=combined_text)
+        chunks = chunk_text_with_offsets(
+            text=combined_text,
+            chunk_size=config.chunk_size,
+            overlap=config.chunk_overlap,
+        )
+
         for chunk_index, chunk in enumerate(chunks):
             yield Document(
-                content=chunk,
-                meta={**metadata, "chunk_index": chunk_index},
+                content=chunk.content,
+                meta={
+                    **metadata,
+                    **resolve_page_metadata(page_spans=page_spans, start=chunk.start, end=chunk.end),
+                    "chunk_index": chunk_index,
+                },
             )
 
 
@@ -111,32 +136,104 @@ def create_document_embedder(config: AppConfig) -> OpenAIDocumentEmbedder | Fast
     )
 
 
-def extract_text(path: Path) -> str | None:
+def extract_source_units(path: Path) -> list[SourceUnit]:
     suffix = path.suffix.lower()
     if suffix in TEXT_EXTENSIONS:
-        return path.read_text(encoding="utf-8", errors="ignore").strip()
+        text = path.read_text(encoding="utf-8", errors="ignore").strip()
+        return [SourceUnit(text=text, meta={})] if text else []
 
     try:
         if suffix == ".pdf":
-            return extract_pdf_text(path)
+            return extract_pdf_units(path)
         if suffix == ".docx":
-            return extract_docx_text(path)
+            text = extract_docx_text(path)
+            return [SourceUnit(text=text, meta={})] if text else []
         if suffix == ".pptx":
-            return extract_pptx_text(path)
+            text = extract_pptx_text(path)
+            return [SourceUnit(text=text, meta={})] if text else []
         if suffix == ".xlsx":
-            return extract_xlsx_text(path)
+            text = extract_xlsx_text(path)
+            return [SourceUnit(text=text, meta={})] if text else []
     except Exception as exc:
         print(f"Skipping {path}: parser failed ({exc})")
-        return None
+        return []
 
     print(f"Skipping {path}: unsupported file type")
-    return None
+    return []
 
 
-def extract_pdf_text(path: Path) -> str:
+def extract_pdf_units(path: Path) -> list[SourceUnit]:
     reader = PdfReader(str(path))
-    pages = [clean_pdf_text(page.extract_text() or "") for page in reader.pages]
-    return "\n\n".join(page.strip() for page in pages if page.strip())
+    units: list[SourceUnit] = []
+    for page_number, page in enumerate(reader.pages, start=1):
+        text = clean_pdf_text(page.extract_text() or "")
+        if not text:
+            continue
+        units.append(
+            SourceUnit(
+                text=text,
+                meta={
+                    "page_number": page_number,
+                    "page_start": page_number,
+                    "page_end": page_number,
+                    "page_label": f"p.{page_number}",
+                },
+            )
+        )
+    return units
+
+
+def combine_source_units(source_units: list[SourceUnit]) -> tuple[str, list[dict[str, int]]]:
+    parts: list[str] = []
+    page_spans: list[dict[str, int]] = []
+    cursor = 0
+
+    for unit in source_units:
+        text = unit.text.strip()
+        if not text:
+            continue
+
+        if parts:
+            parts.append("\n\n")
+            cursor += 2
+
+        start = cursor
+        parts.append(text)
+        cursor += len(text)
+        end = cursor
+
+        page_number = unit.meta.get("page_number")
+        if isinstance(page_number, int):
+            page_spans.append(
+                {
+                    "page_number": page_number,
+                    "start": start,
+                    "end": end,
+                }
+            )
+
+    return "".join(parts), page_spans
+
+
+def resolve_page_metadata(page_spans: list[dict[str, int]], start: int, end: int) -> dict[str, object]:
+    overlapping_pages = [
+        span["page_number"]
+        for span in page_spans
+        if start < span["end"] and end > span["start"]
+    ]
+    if not overlapping_pages:
+        return {}
+
+    page_start = min(overlapping_pages)
+    page_end = max(overlapping_pages)
+    metadata: dict[str, object] = {
+        "page_start": page_start,
+        "page_end": page_end,
+        "page_label": f"p.{page_start}" if page_start == page_end else f"pp.{page_start}-{page_end}",
+    }
+    if page_start == page_end:
+        metadata["page_number"] = page_start
+    return metadata
 
 
 def extract_docx_text(path: Path) -> str:
@@ -225,12 +322,12 @@ def clean_pdf_text(text: str) -> str:
     return cleaned.strip()
 
 
-def chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
+def chunk_text_with_offsets(text: str, chunk_size: int, overlap: int) -> list[ChunkSpan]:
     normalized = normalize_text(text)
     if len(normalized) <= chunk_size:
-        return [normalized]
+        return [ChunkSpan(content=normalized, start=0, end=len(normalized))]
 
-    chunks: list[str] = []
+    chunks: list[ChunkSpan] = []
     start = 0
     text_length = len(normalized)
 
@@ -242,7 +339,9 @@ def chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
                 end = split_at
         chunk = normalized[start:end].strip()
         if chunk:
-            chunks.append(chunk)
+            chunk_start = normalized.find(chunk, start, end)
+            chunk_end = chunk_start + len(chunk)
+            chunks.append(ChunkSpan(content=chunk, start=chunk_start, end=chunk_end))
         if end >= text_length:
             break
         start = max(end - overlap, 0)

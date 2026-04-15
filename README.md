@@ -76,6 +76,7 @@ Implemented in this scaffold:
 - full reindex flow from raw source files
 - local embedding fallback via `fastembed`
 - retrieval evaluation script and sample case set
+- page-level provenance for PDF chunks (`page_number` for single-page chunks, `page_start/page_end/page_label` for multi-page chunks)
 - lightweight parser path:
   - text-like files are read directly
   - PDF via `pypdf` with newline cleanup heuristics and repair of broken word splits like `усло - вия`
@@ -184,6 +185,9 @@ The response includes:
 - `reranking_enabled`: reranker is configured for the service
 - `reranking_requested`: this request asked to use reranking
 - `reranking_applied`: reranking was actually used for this request
+- page metadata for PDF-backed chunks when available:
+  - `page_number` for single-page chunks
+  - `page_start`, `page_end`, `page_label` for multi-page chunks
 - `retrieval_score` and `rerank_score` inside each document `meta`
 
 Example source-collapsed retrieval request:

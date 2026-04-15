@@ -202,7 +202,7 @@ class PipelineWrapper(BasePipelineWrapper):
     def _fallback_answer(self, question: str, documents: list[Document]) -> str:
         snippets: list[str] = []
         for index, document in enumerate(documents[:3], start=1):
-            source_path = str(document.meta.get("source_path", "unknown"))
+            source_path = self._source_reference(document)
             content = (document.content or "").strip()
             snippets.append(f"[{index}] {source_path}\n{content[:700]}")
 
@@ -216,7 +216,7 @@ class PipelineWrapper(BasePipelineWrapper):
     def _format_context(self, documents: list[Document]) -> str:
         blocks: list[str] = []
         for index, document in enumerate(documents, start=1):
-            source_path = document.meta.get("source_path", "unknown")
+            source_path = self._source_reference(document)
             content = (document.content or "").strip()
             blocks.append(f"[{index}] {source_path}\n{content}")
         return "\n\n".join(blocks)
@@ -225,11 +225,11 @@ class PipelineWrapper(BasePipelineWrapper):
         lines: list[str] = []
         seen: set[str] = set()
         for document in documents:
-            source_path = str(document.meta.get("source_path", "unknown"))
-            if source_path in seen:
+            source_ref = self._source_reference(document)
+            if source_ref in seen:
                 continue
-            seen.add(source_path)
-            lines.append(f"- {source_path}")
+            seen.add(source_ref)
+            lines.append(f"- {source_ref}")
         return "\n".join(lines)
 
     def _serialize_document(self, document: Document) -> dict[str, Any]:
@@ -415,3 +415,10 @@ class PipelineWrapper(BasePipelineWrapper):
         if reranking is None:
             return self.reranker is not None
         return bool(reranking) and self.reranker is not None
+
+    def _source_reference(self, document: Document) -> str:
+        source_path = str(document.meta.get("source_path", "unknown"))
+        page_number = document.meta.get("page_number")
+        if page_number is None:
+            return source_path
+        return f"{source_path} (p.{page_number})"
