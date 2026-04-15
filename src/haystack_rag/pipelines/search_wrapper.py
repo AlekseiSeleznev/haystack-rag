@@ -236,6 +236,7 @@ class PipelineWrapper(BasePipelineWrapper):
         return {
             "id": document.id,
             "content": document.content,
+            "source_ref": self._source_reference(document),
             "meta": document.meta,
             "score": getattr(document, "score", None),
         }
@@ -418,7 +419,7 @@ class PipelineWrapper(BasePipelineWrapper):
 
     def _source_reference(self, document: Document) -> str:
         source_path = str(document.meta.get("source_path", "unknown"))
-        page_number = document.meta.get("page_number")
-        if page_number is None:
+        page_label = document.meta.get("page_label")
+        if not page_label:
             return source_path
-        return f"{source_path} (p.{page_number})"
+        return f"{source_path} ({page_label})"

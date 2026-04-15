@@ -158,6 +158,7 @@ def evaluate_cases(
 
         documents = response["result"]["documents"]
         source_paths = [str(document.get("meta", {}).get("source_path", "")) for document in documents]
+        source_refs = [str(document.get("source_ref") or document.get("meta", {}).get("source_path", "")) for document in documents]
         document_contents = [str(document.get("content", "")) for document in documents]
         expected_substrings = case.get("expect_any_source_contains", [])
         expected_content_substrings = case.get("expect_any_content_contains", [])
@@ -184,6 +185,7 @@ def evaluate_cases(
             "expected": expected_substrings,
             "expected_content": expected_content_substrings,
             "returned_source_paths": source_paths,
+            "returned_source_refs": source_refs,
             "reranking_mode": reranking_mode,
             "reranking_enabled": response["result"].get("reranking_enabled"),
             "reranking_requested": response["result"].get("reranking_requested"),
@@ -192,6 +194,11 @@ def evaluate_cases(
                 {
                     "rank": index,
                     "source_path": str(document.get("meta", {}).get("source_path", "")),
+                    "source_ref": str(document.get("source_ref") or document.get("meta", {}).get("source_path", "")),
+                    "page_number": document.get("meta", {}).get("page_number"),
+                    "page_start": document.get("meta", {}).get("page_start"),
+                    "page_end": document.get("meta", {}).get("page_end"),
+                    "page_label": document.get("meta", {}).get("page_label"),
                     "score": document.get("score"),
                     "retrieval_score": document.get("meta", {}).get("retrieval_score"),
                     "rerank_score": document.get("meta", {}).get("rerank_score"),
@@ -260,7 +267,7 @@ def find_match_rank(
 
 
 def render_case_line(entry: dict[str, Any], show_top: int) -> str:
-    top_paths = entry["returned_source_paths"][:show_top]
+    top_paths = entry["returned_source_refs"][:show_top]
     top_paths_text = " | ".join(top_paths) if top_paths else "<no results>"
     content_rank_text = display_optional_rank(
         entry["matched_content_rank"],

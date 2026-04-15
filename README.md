@@ -185,6 +185,7 @@ The response includes:
 - `reranking_enabled`: reranker is configured for the service
 - `reranking_requested`: this request asked to use reranking
 - `reranking_applied`: reranking was actually used for this request
+- `source_ref`: human-readable source reference like `file.pdf (p.246)` or `file.pdf (pp.245-246)`
 - page metadata for PDF-backed chunks when available:
   - `page_number` for single-page chunks
   - `page_start`, `page_end`, `page_label` for multi-page chunks
@@ -243,6 +244,7 @@ Each case can validate two things:
 - `expect_any_content_contains`: at least one returned chunk contains an expected phrase from the right answer area
 
 This is useful because a query can hit the right PDF but still land on the wrong chunk.
+The eval output also prints `source_ref`, so page-aware retrieval is visible directly in the console and JSON report.
 
 Recommended workflow:
 1. Copy the template to `eval/retrieval_cases.user.json`.
