@@ -12,6 +12,8 @@ data/qdrant/
 data/cache/
 eval/report.json
 eval/report.md
+eval/answer-report.json
+eval/answer-report.md
 data/input/*
 !data/input/
 !data/input/.gitkeep

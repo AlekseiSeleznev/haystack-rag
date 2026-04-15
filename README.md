@@ -195,6 +195,21 @@ python3 scripts/evaluate_retrieval.py \
   --markdown-output eval/report.md
 ```
 
+Run answer evaluation with the currently configured OpenAI-compatible chat model:
+
+```bash
+python3 scripts/evaluate_answers.py \
+  --cases eval/retrieval_cases.json \
+  --output eval/answer-report.json \
+  --markdown-output eval/answer-report.md
+```
+
+Shortcut:
+
+```bash
+make answer-eval
+```
+
 Run the same evaluation with reranking forced off:
 
 ```bash
