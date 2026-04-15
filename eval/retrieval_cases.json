@@ -1,0 +1,25 @@
+[
+  {
+    "id": "sap_successfactors_api_reference",
+    "request": {
+      "question": "EmpEmployment assignmentIdExternal hiringNotCompleted startDate userId",
+      "domain": "work",
+      "category": "puig"
+    },
+    "expect_any_source_contains": [
+      "WORK/PUIG/SAP SuccessFactors API Reference Guide.pdf"
+    ]
+  },
+  {
+    "id": "onec_payroll_book",
+    "request": {
+      "question": "Настольная книга по оплате труда и ее расчету в 1С",
+      "domain": "1c",
+      "category": "books",
+      "language_hint": "ru"
+    },
+    "expect_any_source_contains": [
+      "1C/BOOKS/Харитонов_С_А_Настольная_книга_по_оплате_труда_и_ее_расчету_в_1С.PDF"
+    ]
+  }
+]

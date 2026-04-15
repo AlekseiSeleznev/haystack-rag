@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 from pathlib import Path
 from typing import Iterable
 
@@ -29,6 +30,12 @@ TEXT_EXTENSIONS = {
     ".yaml",
     ".yml",
 }
+
+RU_MARKERS = {"ru", "rus", "russian", "рус", "русский"}
+EN_MARKERS = {"en", "eng", "english", "англ", "english-language"}
+CYRILLIC_RE = re.compile(r"[А-Яа-яЁё]")
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Index source documents into Qdrant.")
     parser.add_argument(
@@ -77,16 +84,12 @@ def build_documents(
         if not text:
             continue
 
+        metadata = build_metadata(path=path, input_dir=input_dir, text=text)
         chunks = chunk_text(text=text, chunk_size=config.chunk_size, overlap=config.chunk_overlap)
         for chunk_index, chunk in enumerate(chunks):
             yield Document(
                 content=chunk,
-                meta={
-                    "chunk_index": chunk_index,
-                    "extension": path.suffix.lower(),
-                    "source_name": path.name,
-                    "source_path": str(path.relative_to(input_dir)),
-                },
+                meta={**metadata, "chunk_index": chunk_index},
             )
 
 
@@ -163,6 +166,50 @@ def extract_xlsx_text(path: Path) -> str:
             if cells:
                 parts.append(" | ".join(cells))
     return "\n".join(parts)
+
+
+def build_metadata(path: Path, input_dir: Path, text: str) -> dict[str, object]:
+    relative_path = path.relative_to(input_dir)
+    parent_parts = relative_path.parts[:-1]
+    domain_raw = parent_parts[0] if len(parent_parts) >= 1 else ""
+    category_raw = parent_parts[1] if len(parent_parts) >= 2 else ""
+    subcategory_raw = parent_parts[2] if len(parent_parts) >= 3 else ""
+    source_dir = "" if relative_path.parent == Path(".") else str(relative_path.parent)
+
+    return {
+        "extension": path.suffix.lower(),
+        "source_name": path.name,
+        "source_name_norm": path.name.casefold(),
+        "source_stem": path.stem,
+        "source_stem_norm": path.stem.casefold(),
+        "source_path": str(relative_path),
+        "source_path_norm": str(relative_path).casefold(),
+        "source_dir": source_dir,
+        "source_dir_norm": source_dir.casefold(),
+        "path_depth": len(parent_parts),
+        "domain_raw": domain_raw,
+        "domain": domain_raw.casefold(),
+        "category_raw": category_raw,
+        "category": category_raw.casefold(),
+        "subcategory_raw": subcategory_raw,
+        "subcategory": subcategory_raw.casefold(),
+        "language_hint": infer_language_hint(relative_path=relative_path, text=text),
+    }
+
+
+def infer_language_hint(relative_path: Path, text: str) -> str:
+    path_tokens = {
+        token
+        for token in re.split(r"[\W_]+", " ".join(relative_path.parts).casefold())
+        if token
+    }
+    if path_tokens & RU_MARKERS:
+        return "ru"
+    if path_tokens & EN_MARKERS:
+        return "en"
+
+    sample = text[:4000]
+    return "ru" if CYRILLIC_RE.search(sample) else "en"
 
 
 def chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:

@@ -35,13 +35,43 @@ class PipelineWrapper(BasePipelineWrapper):
         self.pipeline.add_component("retriever", self.retriever)
         self.pipeline.connect("query_embedder.embedding", "retriever.query_embedding")
 
-    def run_api(self, question: str, mode: str = "search", top_k: int | None = None) -> dict[str, Any]:
+    def run_api(
+        self,
+        question: str,
+        mode: str = "search",
+        top_k: int | None = None,
+        domain: str | list[str] | None = None,
+        category: str | list[str] | None = None,
+        subcategory: str | list[str] | None = None,
+        source_dir: str | list[str] | None = None,
+        source_name: str | list[str] | None = None,
+        extension: str | list[str] | None = None,
+        language_hint: str | list[str] | None = None,
+        filters: dict[str, Any] | list[dict[str, Any]] | None = None,
+        score_threshold: float | None = None,
+    ) -> dict[str, Any]:
         """Run retrieval over the indexed technical documentation."""
-        documents = self._retrieve(question=question, top_k=top_k)
+        applied_filters = self._build_filters(
+            domain=domain,
+            category=category,
+            subcategory=subcategory,
+            source_dir=source_dir,
+            source_name=source_name,
+            extension=extension,
+            language_hint=language_hint,
+            filters=filters,
+        )
+        documents = self._retrieve(
+            question=question,
+            top_k=top_k,
+            filters=applied_filters,
+            score_threshold=score_threshold,
+        )
 
         result: dict[str, Any] = {
             "question": question,
             "mode": mode,
+            "applied_filters": applied_filters,
             "documents": [self._serialize_document(document) for document in documents],
         }
 
@@ -55,14 +85,38 @@ class PipelineWrapper(BasePipelineWrapper):
         if not question:
             return "I did not receive a user question."
 
-        documents = self._retrieve(question=question, top_k=body.get("top_k"))
+        documents = self._retrieve(
+            question=question,
+            top_k=body.get("top_k"),
+            filters=self._build_filters(
+                domain=body.get("domain"),
+                category=body.get("category"),
+                subcategory=body.get("subcategory"),
+                source_dir=body.get("source_dir"),
+                source_name=body.get("source_name"),
+                extension=body.get("extension"),
+                language_hint=body.get("language_hint"),
+                filters=body.get("filters"),
+            ),
+            score_threshold=body.get("score_threshold"),
+        )
         return self._answer(question=question, documents=documents)
 
-    def _retrieve(self, question: str, top_k: int | None = None) -> list[Document]:
+    def _retrieve(
+        self,
+        question: str,
+        top_k: int | None = None,
+        filters: dict[str, Any] | list[dict[str, Any]] | None = None,
+        score_threshold: float | None = None,
+    ) -> list[Document]:
         result = self.pipeline.run(
             data={
                 "query_embedder": {"text": question},
-                "retriever": {"top_k": top_k or self.config.top_k},
+                "retriever": {
+                    "filters": filters,
+                    "top_k": top_k or self.config.top_k,
+                    "score_threshold": score_threshold,
+                },
             }
         )
         return result["retriever"]["documents"]
@@ -159,3 +213,82 @@ class PipelineWrapper(BasePipelineWrapper):
 
     def _query_prefix(self) -> str:
         return "query: " if "e5" in self.config.embedding_model.lower() else ""
+
+    def _build_filters(
+        self,
+        domain: str | list[str] | None = None,
+        category: str | list[str] | None = None,
+        subcategory: str | list[str] | None = None,
+        source_dir: str | list[str] | None = None,
+        source_name: str | list[str] | None = None,
+        extension: str | list[str] | None = None,
+        language_hint: str | list[str] | None = None,
+        filters: dict[str, Any] | list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any] | list[dict[str, Any]] | None:
+        conditions: list[dict[str, Any]] = []
+        self._add_filter_conditions(conditions, "meta.domain", domain, normalize=self._normalize_text_filter)
+        self._add_filter_conditions(conditions, "meta.category", category, normalize=self._normalize_text_filter)
+        self._add_filter_conditions(
+            conditions,
+            "meta.subcategory",
+            subcategory,
+            normalize=self._normalize_text_filter,
+        )
+        self._add_filter_conditions(
+            conditions,
+            "meta.source_dir_norm",
+            source_dir,
+            normalize=self._normalize_text_filter,
+        )
+        self._add_filter_conditions(
+            conditions,
+            "meta.source_name_norm",
+            source_name,
+            normalize=self._normalize_text_filter,
+        )
+        self._add_filter_conditions(
+            conditions,
+            "meta.extension",
+            extension,
+            normalize=self._normalize_extension_filter,
+        )
+        self._add_filter_conditions(
+            conditions,
+            "meta.language_hint",
+            language_hint,
+            normalize=self._normalize_text_filter,
+        )
+
+        if filters is None:
+            return conditions or None
+        if isinstance(filters, list):
+            return conditions + filters
+        return conditions + [filters]
+
+    def _add_filter_conditions(
+        self,
+        conditions: list[dict[str, Any]],
+        field: str,
+        value: str | list[str] | None,
+        normalize: Any,
+    ) -> None:
+        if value is None:
+            return
+        if isinstance(value, list):
+            normalized_values = [normalize(item) for item in value if item is not None and str(item).strip()]
+            if normalized_values:
+                conditions.append({"field": field, "operator": "in", "value": normalized_values})
+            return
+
+        normalized_value = normalize(value)
+        if normalized_value:
+            conditions.append({"field": field, "operator": "==", "value": normalized_value})
+
+    def _normalize_extension_filter(self, value: Any) -> str:
+        text = str(value).strip().casefold()
+        if not text:
+            return ""
+        return text if text.startswith(".") else f".{text}"
+
+    def _normalize_text_filter(self, value: Any) -> str:
+        return str(value).strip().casefold()

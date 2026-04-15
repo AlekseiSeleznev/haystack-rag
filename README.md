@@ -19,6 +19,7 @@ Current non-goal:
 - `data/input/`: local fixtures and smoke-test inputs
 - `data/qdrant/`: local Qdrant storage
 - `docs/`: architecture notes
+- `eval/`: retrieval evaluation cases
 - `scripts/`: local helper scripts
 - `src/haystack_rag/`: application code
 
@@ -66,9 +67,11 @@ Implemented in this scaffold:
 - base Docker stack
 - Qdrant-backed retrieval wrapper for Hayhooks
 - simple `search` API mode
+- structured retrieval filters for `domain`, `category`, `subcategory`, `source_dir`, `source_name`, `extension`, `language_hint`
 - chat completion mode for Open WebUI
 - full reindex flow from raw source files
 - local embedding fallback via `fastembed`
+- retrieval evaluation script and sample case set
 - lightweight parser path:
   - text-like files are read directly
   - PDF via `pypdf`
@@ -80,8 +83,6 @@ Not implemented yet:
 - reranking
 - multilingual query routing
 - OCR-only path for scanned PDFs
-- folder/source filtering in retrieval
-- evaluation harness
 
 ## Commands
 
@@ -110,10 +111,29 @@ docker compose logs -f hayhooks
 docker compose logs -f open-webui
 ```
 
+Run retrieval evaluation:
+
+```bash
+python3 scripts/evaluate_retrieval.py --cases eval/retrieval_cases.json
+```
+
+Example filtered retrieval request:
+
+```bash
+curl -X POST http://localhost:1416/doc_search/run \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "question": "Настольная книга по оплате труда и ее расчету в 1С",
+    "mode": "search",
+    "domain": "1c",
+    "category": "books",
+    "language_hint": "ru"
+  }'
+```
+
 ## Next Steps
 
 1. Add reranking after dense retrieval is validated.
 2. Improve parser strategy for difficult PDFs.
-3. Add structured source filters.
-4. Add evaluation queries for SAP / 1C docs.
-5. Revisit answer mode only after `search_only` is stable.
+3. Expand the evaluation case set with real user queries.
+4. Revisit answer mode only after `search_only` is stable.

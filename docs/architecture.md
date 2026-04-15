@@ -8,8 +8,12 @@
    - local `fastembed`, or
    - an external OpenAI-compatible embedding API
 4. Embedded chunks are stored in Qdrant.
-5. Hayhooks exposes retrieval and answer generation.
-6. Open WebUI connects to Hayhooks through the OpenAI-compatible API by default in `docker-compose`.
+5. Ingestion stores normalized metadata for retrieval filters:
+   - `domain`, `category`, `subcategory`
+   - `source_dir`, `source_name`, `extension`
+   - `language_hint`
+6. Hayhooks exposes retrieval and answer generation.
+7. Open WebUI connects to Hayhooks through the OpenAI-compatible API by default in `docker-compose`.
 
 ## Design Rules
 
@@ -19,3 +23,4 @@
 - Keep the default dev stack runnable without external keys.
 - Use external models only when they add clear quality value.
 - Treat parser quality as a first-class concern.
+- Verify retrieval quality with repeatable eval cases before enabling richer answer synthesis.
