@@ -157,9 +157,18 @@ def evaluate_cases(
 
         documents = response["result"]["documents"]
         source_paths = [str(document.get("meta", {}).get("source_path", "")) for document in documents]
+        document_contents = [str(document.get("content", "")) for document in documents]
         expected_substrings = case.get("expect_any_source_contains", [])
+        expected_content_substrings = case.get("expect_any_content_contains", [])
         matched_rank = find_match_rank(source_paths, expected_substrings)
-        success = matched_rank is not None
+        matched_content_rank = find_match_rank(
+            document_contents,
+            expected_content_substrings,
+            normalize=normalize_for_match,
+        )
+        source_success = matched_rank is not None
+        content_success = matched_content_rank is not None if expected_content_substrings else True
+        success = source_success and content_success
         if success:
             passed += 1
 
@@ -167,8 +176,12 @@ def evaluate_cases(
             "id": case["id"],
             "question": payload["question"],
             "success": success,
+            "source_success": source_success,
+            "content_success": content_success,
             "matched_rank": matched_rank,
+            "matched_content_rank": matched_content_rank,
             "expected": expected_substrings,
+            "expected_content": expected_content_substrings,
             "returned_source_paths": source_paths,
             "reranking_mode": reranking_mode,
             "reranking_enabled": response["result"].get("reranking_enabled"),
@@ -220,9 +233,25 @@ def post_json(url: str, payload: dict[str, Any]) -> dict[str, Any]:
         return json.loads(response.read().decode("utf-8"))
 
 
-def find_match_rank(source_paths: list[str], expected_substrings: list[str]) -> int | None:
-    for index, source_path in enumerate(source_paths, start=1):
-        if any(expected in source_path for expected in expected_substrings):
+def normalize_for_match(value: Any) -> str:
+    return " ".join(str(value).casefold().split())
+
+
+def normalize_verbatim(value: Any) -> str:
+    return str(value)
+
+
+def find_match_rank(
+    values: list[str],
+    expected_substrings: list[str],
+    normalize: Any = normalize_verbatim,
+) -> int | None:
+    if not expected_substrings:
+        return None
+    normalized_expected = [normalize(expected) for expected in expected_substrings]
+    for index, value in enumerate(values, start=1):
+        normalized_value = normalize(value)
+        if any(expected in normalized_value for expected in normalized_expected):
             return index
     return None
 
@@ -230,6 +259,10 @@ def find_match_rank(source_paths: list[str], expected_substrings: list[str]) -> 
 def render_case_line(entry: dict[str, Any], show_top: int) -> str:
     top_paths = entry["returned_source_paths"][:show_top]
     top_paths_text = " | ".join(top_paths) if top_paths else "<no results>"
+    content_rank_text = display_optional_rank(
+        entry["matched_content_rank"],
+        available=bool(entry["expected_content"]),
+    )
     reranking_note = (
         f" reranking={entry['reranking_mode']}"
         f" requested={entry['reranking_requested']}"
@@ -237,11 +270,14 @@ def render_case_line(entry: dict[str, Any], show_top: int) -> str:
     )
     if entry["success"]:
         return (
-            f"[PASS] {entry['id']} rank={entry['matched_rank']} question={entry['question']}{reranking_note}\n"
+            f"[PASS] {entry['id']} rank={display_rank(entry['matched_rank'])} content_rank={content_rank_text} "
+            f"question={entry['question']}{reranking_note}\n"
             f"       top={top_paths_text}"
         )
     return (
-        f"[FAIL] {entry['id']} rank=- question={entry['question']}{reranking_note}\n"
+        f"[FAIL] {entry['id']} source_rank={display_rank(entry['matched_rank'])} "
+        f"content_rank={content_rank_text} "
+        f"question={entry['question']}{reranking_note}\n"
         f"       top={top_paths_text}"
     )
 
@@ -255,8 +291,9 @@ def build_comparison(on_cases: list[dict[str, Any]], off_cases: list[dict[str, A
 
     for on_entry in on_cases:
         off_entry = off_by_id[on_entry["id"]]
-        on_rank = normalize_rank(on_entry["matched_rank"])
-        off_rank = normalize_rank(off_entry["matched_rank"])
+        metric_name = "content" if on_entry["expected_content"] else "source"
+        on_rank = comparison_rank(on_entry)
+        off_rank = comparison_rank(off_entry)
         delta = off_rank - on_rank
 
         if delta > 0:
@@ -271,8 +308,9 @@ def build_comparison(on_cases: list[dict[str, Any]], off_cases: list[dict[str, A
 
         lines.append(
             f"{on_entry['id']}: {verdict} "
-            f"(on_rank={display_rank(on_entry['matched_rank'])}, "
-            f"off_rank={display_rank(off_entry['matched_rank'])})"
+            f"(metric={metric_name}, "
+            f"on_rank={display_optional_rank(on_entry['matched_content_rank'] if metric_name == 'content' else on_entry['matched_rank'], available=True)}, "
+            f"off_rank={display_optional_rank(off_entry['matched_content_rank'] if metric_name == 'content' else off_entry['matched_rank'], available=True)})"
         )
 
     return {
@@ -291,6 +329,18 @@ def normalize_rank(rank: int | None) -> int:
 
 def display_rank(rank: int | None) -> str:
     return str(rank) if rank is not None else "miss"
+
+
+def display_optional_rank(rank: int | None, available: bool) -> str:
+    if not available:
+        return "n/a"
+    return display_rank(rank)
+
+
+def comparison_rank(entry: dict[str, Any]) -> int:
+    if entry["expected_content"]:
+        return normalize_rank(entry["matched_content_rank"])
+    return normalize_rank(entry["matched_rank"])
 
 
 def print_summary(summary: dict[str, Any]) -> None:

@@ -8,6 +8,10 @@
     },
     "expect_any_source_contains": [
       "WORK/PUIG/SAP SuccessFactors API Reference Guide.pdf"
+    ],
+    "expect_any_content_contains": [
+      "mandatory_parameters_missing",
+      "userId or startDate is missing or empty"
     ]
   },
   {
@@ -19,6 +23,10 @@
     },
     "expect_any_source_contains": [
       "WORK/PUIG/SAP SuccessFactors API Reference Guide.pdf"
+    ],
+    "expect_any_content_contains": [
+      "Register your client application in SAP SuccessFactors to obtain an API key",
+      "Authentication Using OAuth 2.0"
     ]
   },
   {
@@ -30,6 +38,10 @@
     },
     "expect_any_source_contains": [
       "WORK/PUIG/SAP SuccessFactors API Reference Guide.pdf"
+    ],
+    "expect_any_content_contains": [
+      "key predicate",
+      "Query with key predicate and system query options"
     ]
   },
   {
@@ -41,6 +53,10 @@
     },
     "expect_any_source_contains": [
       "WORK/PUIG/SAP SuccessFactors API Reference Guide.pdf"
+    ],
+    "expect_any_content_contains": [
+      "Examples of $batch Request Bodies",
+      "ChangeSet"
     ]
   },
   {
@@ -52,6 +68,10 @@
     },
     "expect_any_source_contains": [
       "WORK/PUIG/SAP SuccessFactors API Reference Guide.pdf"
+    ],
+    "expect_any_content_contains": [
+      "OData API Data Dictionary",
+      "UI-based tool"
     ]
   },
   {
@@ -63,6 +83,10 @@
     },
     "expect_any_source_contains": [
       "WORK/PUIG/SAP SuccessFactors API Reference Guide.pdf"
+    ],
+    "expect_any_content_contains": [
+      "manage assignments, use this metadata call",
+      "/learning/odatav4/public/admin/curriculum-service/v1/$metadata"
     ]
   },
   {
@@ -87,6 +111,10 @@
     },
     "expect_any_source_contains": [
       "1C/BOOKS/Харитонов_С_А_Настольная_книга_по_оплате_труда_и_ее_расчету_в_1С.PDF"
+    ],
+    "expect_any_content_contains": [
+      "настройки кадрового учета и расчета зарплаты можно просмотреть",
+      "Настройка → Кадровый учет"
     ]
   },
   {
@@ -99,6 +127,10 @@
     },
     "expect_any_source_contains": [
       "1C/BOOKS/Харитонов_С_А_Настольная_книга_по_оплате_труда_и_ее_расчету_в_1С.PDF"
+    ],
+    "expect_any_content_contains": [
+      "плановое начисление Северная надбавка",
+      "Территориальные условия"
     ]
   },
   {
@@ -111,6 +143,10 @@
     },
     "expect_any_source_contains": [
       "1C/BOOKS/Харитонов_С_А_Настольная_книга_по_оплате_труда_и_ее_расчету_в_1С.PDF"
+    ],
+    "expect_any_content_contains": [
+      "Оплата транспортных расходов при командировках за пределы РФ",
+      "выплата суточных"
     ]
   },
   {
@@ -123,6 +159,10 @@
     },
     "expect_any_source_contains": [
       "1C/BOOKS/Харитонов_С_А_Настольная_книга_по_оплате_труда_и_ее_расчету_в_1С.PDF"
+    ],
+    "expect_any_content_contains": [
+      "Сведениях для реестра прямых выплат ФСС следует уделить способу выплаты пособия",
+      "Способ выплаты пособия"
     ]
   },
   {
@@ -135,6 +175,10 @@
     },
     "expect_any_source_contains": [
       "1C/BOOKS/Харитонов_С_А_Настольная_книга_по_оплате_труда_и_ее_расчету_в_1С.PDF"
+    ],
+    "expect_any_content_contains": [
+      "Оплата труда совместителей производится",
+      "работе по совместительству"
     ]
   }
 ]

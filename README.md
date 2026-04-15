@@ -164,6 +164,8 @@ python3 scripts/evaluate_retrieval.py \
   --compare-reranking
 ```
 
+When a case contains `expect_any_content_contains`, the comparison uses the content-hit rank rather than only the source-file rank.
+
 Example filtered retrieval request:
 
 ```bash
@@ -232,9 +234,15 @@ Base evaluation set:
 Template for your own real questions:
 - [retrieval_cases.user-template.json](/home/as/Документы/AI_PROJECTS/haystack-rag/eval/retrieval_cases.user-template.json)
 
+Each case can validate two things:
+- `expect_any_source_contains`: the correct file appears in top-k
+- `expect_any_content_contains`: at least one returned chunk contains an expected phrase from the right answer area
+
+This is useful because a query can hit the right PDF but still land on the wrong chunk.
+
 Recommended workflow:
 1. Copy the template to `eval/retrieval_cases.user.json`.
-2. Add your real questions and expected source paths.
+2. Add your real questions, expected source paths, and a short phrase that should appear in the relevant chunk.
 3. Run:
 
 ```bash

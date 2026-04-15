@@ -9,6 +9,9 @@
     },
     "expect_any_source_contains": [
       "1C/BOOKS/Имя_нужного_файла.PDF"
+    ],
+    "expect_any_content_contains": [
+      "Короткая ожидаемая фраза из правильного фрагмента"
     ]
   },
   {
@@ -20,6 +23,9 @@
     },
     "expect_any_source_contains": [
       "WORK/PUIG/SAP SuccessFactors API Reference Guide.pdf"
+    ],
+    "expect_any_content_contains": [
+      "A short phrase that should appear in the relevant chunk"
     ]
   }
 ]
