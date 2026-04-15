@@ -16,11 +16,15 @@ Current non-goal:
 ## Project Layout
 
 - `config/pipelines/`: Hayhooks auto-deployed pipeline wrappers
-- `data/input/`: source documents for indexing
+- `data/input/`: local fixtures and smoke-test inputs
 - `data/qdrant/`: local Qdrant storage
 - `docs/`: architecture notes
 - `scripts/`: local helper scripts
 - `src/haystack_rag/`: application code
+
+Default external source directory:
+- host path: `/home/as/Документы/RAG_DOCS`
+- container path: `/documents/rag_docs`
 
 ## First Run
 
@@ -36,7 +40,8 @@ cp .env.example .env
 - `EMBEDDING_PROVIDER=openai`, if you want external embeddings
 - `CHAT_PROVIDER=openai`, if you want LLM answers instead of retrieval-only fallback
 
-3. Put source files into `data/input/`.
+3. Put source files into `/home/as/Документы/RAG_DOCS`.
+Nested subfolders are indexed and preserved in `source_path` metadata.
 
 4. Start the base stack:
 
@@ -47,7 +52,7 @@ docker compose up -d qdrant hayhooks open-webui
 5. Run a full reindex:
 
 ```bash
-docker compose run --rm ingestion python -m haystack_rag.ingestion.index_documents --input-dir /app/data/input --recreate-index
+docker compose run --rm ingestion python -m haystack_rag.ingestion.index_documents --input-dir /documents/rag_docs --recreate-index
 ```
 
 6. Open `http://localhost:3000`.
@@ -89,13 +94,13 @@ docker compose up -d
 Rebuild the index from scratch:
 
 ```bash
-docker compose run --rm ingestion python -m haystack_rag.ingestion.index_documents --input-dir /app/data/input --recreate-index
+docker compose run --rm ingestion python -m haystack_rag.ingestion.index_documents --input-dir /documents/rag_docs --recreate-index
 ```
 
 Incremental indexing:
 
 ```bash
-docker compose run --rm ingestion python -m haystack_rag.ingestion.index_documents --input-dir /app/data/input
+docker compose run --rm ingestion
 ```
 
 Follow logs:

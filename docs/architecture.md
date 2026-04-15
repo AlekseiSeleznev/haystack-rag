@@ -2,7 +2,7 @@
 
 ## Current Flow
 
-1. Documents are placed into `data/input/`.
+1. Documents are placed into the host directory `/home/as/Документы/RAG_DOCS`.
 2. The ingestion command parses files and chunks them.
 3. Chunks are embedded with either:
    - local `fastembed`, or

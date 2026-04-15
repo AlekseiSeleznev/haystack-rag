@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 from typing import Iterable
 
@@ -30,7 +31,11 @@ TEXT_EXTENSIONS = {
 }
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Index source documents into Qdrant.")
-    parser.add_argument("--input-dir", default="data/input", help="Directory with source documents.")
+    parser.add_argument(
+        "--input-dir",
+        default=os.getenv("INPUT_DIR", "data/input"),
+        help="Directory with source documents.",
+    )
     parser.add_argument(
         "--recreate-index",
         action="store_true",

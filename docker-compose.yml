@@ -47,12 +47,13 @@ services:
     volumes:
       - ./data:/app/data
       - ./src:/app/src
+      - ${HOST_SOURCE_DOCS_DIR:-/home/as/Документы/RAG_DOCS}:${SOURCE_DOCS_DIR:-/documents/rag_docs}:ro
     command:
       - python
       - -m
       - haystack_rag.ingestion.index_documents
       - --input-dir
-      - /app/data/input
+      - ${SOURCE_DOCS_DIR:-/documents/rag_docs}
 
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
